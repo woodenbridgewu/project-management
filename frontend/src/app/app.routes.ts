@@ -16,11 +16,11 @@ export const routes: Routes = [
         canActivate: [authGuard],
         loadChildren: () => import('./features/workspace/workspace.routes').then(m => m.workspaceRoutes)
     },
-    // {
-    //     path: 'projects/:id',
-    //     canActivate: [authGuard],
-    //     loadChildren: () => import('./features/project/project.routes')
-    // },
+    {
+        path: 'projects',
+        canActivate: [authGuard],
+        loadChildren: () => import('./features/project/project.routes').then(m => m.projectRoutes)
+    },
     {
         path: '',
         redirectTo: '/dashboard',
