@@ -50,35 +50,44 @@ export interface Project {
 
 export interface Section {
     id: string;
-    projectId: string;
+    project_id: string;
     name: string;
     position: number;
+    task_count?: number | string;
+    created_at: string | Date;
+    updated_at: string | Date;
     tasks?: Task[];
 }
 
 export interface Task {
     id: string;
-    projectId: string;
-    sectionId?: string;
-    parentTaskId?: string;
+    project_id: string;
+    section_id?: string;
+    parent_task_id?: string;
     title: string;
     description?: string;
     status: 'todo' | 'in_progress' | 'review' | 'done';
     priority?: 'low' | 'medium' | 'high' | 'urgent';
+    assignee_id?: string;
+    assignee_name?: string;
+    assignee_avatar?: string;
     assignee?: User;
-    creator: User;
-    dueDate?: Date;
-    startDate?: Date;
-    completedAt?: Date;
+    creator_id?: string;
+    creator_name?: string;
+    creator?: User;
+    due_date?: string | Date;
+    start_date?: string | Date;
+    completed_at?: string | Date;
     position: number;
-    estimatedHours?: number;
-    actualHours?: number;
-    subtaskCount?: number;
-    commentCount?: number;
-    attachmentCount?: number;
+    estimated_hours?: number;
+    actual_hours?: number;
+    subtask_count?: number | string;
+    comment_count?: number | string;
+    attachment_count?: number | string;
+    section_name?: string;
     tags?: Tag[];
-    createdAt: Date;
-    updatedAt: Date;
+    created_at: string | Date;
+    updated_at: string | Date;
 }
 
 export interface Tag {
