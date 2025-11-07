@@ -8,6 +8,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { authRouter } from './routes/auth.routes';
 import { workspaceRouter } from './routes/workspace.routes';
 import { projectRouter } from './routes/project.routes';
+import { sectionRouter } from './routes/section.routes';
 import { taskRouter } from './routes/task.routes';
 import { initializeWebSocket } from './websocket/index';
 
@@ -27,6 +28,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRouter);
 app.use('/api/workspaces', workspaceRouter);
 app.use('/api/projects', projectRouter);
+app.use('/api/sections', sectionRouter);
 app.use('/api/tasks', taskRouter);
 
 // 錯誤處理
