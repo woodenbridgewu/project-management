@@ -50,7 +50,9 @@ import { Task, Section } from '../../../core/models/task.model';
                 <div class="task-card-wrapper" cdkDrag>
                   <app-task-card 
                     [task]="task"
-                    (taskClick)="openTaskDetail(task)">
+                    (taskClick)="openTaskDetail(task)"
+                    (taskEdit)="editTask(task)"
+                    (taskDelete)="deleteTask(task)">
                   </app-task-card>
                 </div>
               }
@@ -705,8 +707,28 @@ export class ProjectBoardComponent implements OnInit {
     }
 
     openTaskDetail(task: Task): void {
-        // TODO: 導航到任務詳情頁面
-        console.log('Open task detail:', task.id);
+        this.router.navigate(['/tasks', task.id]);
+    }
+
+    editTask(task: Task): void {
+        // 導航到任務詳情頁面進行編輯
+        this.router.navigate(['/tasks', task.id]);
+    }
+
+    deleteTask(task: Task): void {
+        if (!confirm('確定要刪除此任務嗎？此操作無法復原。')) return;
+
+        this.loading.set(true);
+        this.taskService.deleteTask(task.id).subscribe({
+            next: () => {
+                this.loadSections();
+            },
+            error: (error) => {
+                console.error('刪除任務失敗:', error);
+                alert('刪除任務失敗：' + (error.error?.error || '未知錯誤'));
+                this.loading.set(false);
+            }
+        });
     }
 
     goBack() {
