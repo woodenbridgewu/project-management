@@ -180,21 +180,42 @@ export class TaskController {
             const { id } = req.params;
             const updates = req.body;
 
+            // 欄位名稱對應（camelCase -> snake_case）
+            const fieldMapping: Record<string, string> = {
+                sectionId: 'section_id',
+                assigneeId: 'assignee_id',
+                dueDate: 'due_date',
+                startDate: 'start_date',
+                estimatedHours: 'estimated_hours',
+                actualHours: 'actual_hours',
+                parentTaskId: 'parent_task_id'
+            };
+
             // 建立動態更新語句
             const fields = Object.keys(updates);
-            const values = Object.values(updates);
+            const values: any[] = [];
+            const setClauses: string[] = [];
+            let paramIndex = 2;
 
-            if (fields.length === 0) {
+            fields.forEach(field => {
+                const dbField = fieldMapping[field] || field;
+                const value = updates[field];
+                
+                // 跳過 null 或 undefined 的值（如果要清除欄位，需要明確傳 null）
+                if (value !== undefined) {
+                    setClauses.push(`${dbField} = $${paramIndex}`);
+                    values.push(value);
+                    paramIndex++;
+                }
+            });
+
+            if (setClauses.length === 0) {
                 return res.status(400).json({ error: 'No fields to update' });
             }
 
-            const setClause = fields
-                .map((field, idx) => `${field} = ${idx + 2}`)
-                .join(', ');
-
             const result = await query(
                 `UPDATE tasks 
-         SET ${setClause}, updated_at = NOW()
+         SET ${setClauses.join(', ')}, updated_at = NOW()
          WHERE id = $1
          RETURNING *`,
                 [id, ...values]
@@ -204,17 +225,52 @@ export class TaskController {
                 return res.status(404).json({ error: 'Task not found' });
             }
 
-            // 記錄活動
-            await this.logActivity(
-                result.rows[0].project_id,
-                req.user!.id,
-                'task',
-                id,
-                'updated',
-                updates
+            // 取得完整的任務資訊（包含關聯資料）
+            const fullTaskResult = await query(
+                `SELECT 
+                    t.*,
+                    u.full_name as assignee_name,
+                    u.avatar_url as assignee_avatar,
+                    c.full_name as creator_name,
+                    s.name as section_name,
+                    COUNT(DISTINCT st.id) as subtask_count,
+                    COUNT(DISTINCT cm.id) as comment_count,
+                    COUNT(DISTINCT a.id) as attachment_count
+                FROM tasks t
+                LEFT JOIN users u ON t.assignee_id = u.id
+                LEFT JOIN users c ON t.creator_id = c.id
+                LEFT JOIN sections s ON t.section_id = s.id
+                LEFT JOIN tasks st ON st.parent_task_id = t.id
+                LEFT JOIN comments cm ON cm.task_id = t.id
+                LEFT JOIN task_attachments a ON a.task_id = t.id
+                WHERE t.id = $1
+                GROUP BY t.id, u.id, c.id, s.id`,
+                [id]
             );
 
-            res.json({ task: result.rows[0] });
+            // 記錄活動（需要 workspace_id）
+            const projectResult = await query(
+                `SELECT workspace_id FROM projects WHERE id = $1`,
+                [result.rows[0].project_id]
+            );
+
+            if (projectResult.rows.length > 0) {
+                try {
+                    await this.logActivity(
+                        projectResult.rows[0].workspace_id,
+                        req.user!.id,
+                        'task',
+                        id,
+                        'updated',
+                        updates
+                    );
+                } catch (activityError) {
+                    console.error('Failed to log activity:', activityError);
+                    // 活動紀錄失敗不影響任務更新
+                }
+            }
+
+            res.json({ task: fullTaskResult.rows[0] });
         } catch (error) {
             console.error('Update task error:', error);
             res.status(500).json({ error: 'Internal server error' });
@@ -225,22 +281,49 @@ export class TaskController {
         try {
             const { id } = req.params;
 
-            const result = await query(
-                'DELETE FROM tasks WHERE id = $1 RETURNING project_id',
+            // 先取得任務的 project_id，以便後續取得 workspace_id
+            const taskResult = await query(
+                'SELECT project_id FROM tasks WHERE id = $1',
                 [id]
             );
 
-            if (result.rows.length === 0) {
+            if (taskResult.rows.length === 0) {
                 return res.status(404).json({ error: 'Task not found' });
             }
 
-            await this.logActivity(
-                result.rows[0].project_id,
-                req.user!.id,
-                'task',
-                id,
-                'deleted'
+            const projectId = taskResult.rows[0].project_id;
+
+            // 取得 workspace_id 用於活動記錄
+            const projectResult = await query(
+                `SELECT workspace_id FROM projects WHERE id = $1`,
+                [projectId]
             );
+
+            // 刪除任務
+            const deleteResult = await query(
+                'DELETE FROM tasks WHERE id = $1 RETURNING id',
+                [id]
+            );
+
+            if (deleteResult.rows.length === 0) {
+                return res.status(404).json({ error: 'Task not found' });
+            }
+
+            // 記錄活動（使用 try-catch 避免活動紀錄失敗影響主要功能）
+            if (projectResult.rows.length > 0) {
+                try {
+                    await this.logActivity(
+                        projectResult.rows[0].workspace_id,
+                        req.user!.id,
+                        'task',
+                        id,
+                        'deleted'
+                    );
+                } catch (activityError) {
+                    console.error('Failed to log activity:', activityError);
+                    // 活動紀錄失敗不影響任務刪除
+                }
+            }
 
             res.json({ message: 'Task deleted successfully' });
         } catch (error) {
