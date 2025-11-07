@@ -53,12 +53,17 @@ export class AuthService {
 
     refreshToken(): Observable<{ accessToken: string }> {
         const refreshToken = localStorage.getItem(this.REFRESH_TOKEN_KEY);
+        if (!refreshToken) {
+            throw new Error('Refresh token not found');
+        }
         return this.http.post<{ accessToken: string }>(
             `${environment.apiUrl}/auth/refresh`,
             { refreshToken }
         ).pipe(
             tap(response => {
-                localStorage.setItem(this.TOKEN_KEY, response.accessToken);
+                if (response.accessToken) {
+                    localStorage.setItem(this.TOKEN_KEY, response.accessToken);
+                }
             })
         );
     }
