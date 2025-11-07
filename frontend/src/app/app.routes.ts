@@ -22,6 +22,11 @@ export const routes: Routes = [
         loadChildren: () => import('./features/project/project.routes').then(m => m.projectRoutes)
     },
     {
+        path: 'tasks',
+        canActivate: [authGuard],
+        loadChildren: () => import('./features/task/task.routes').then(m => m.taskRoutes)
+    },
+    {
         path: '',
         redirectTo: '/dashboard',
         pathMatch: 'full'
