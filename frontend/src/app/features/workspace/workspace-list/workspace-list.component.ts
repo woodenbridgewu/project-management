@@ -14,6 +14,7 @@ import { Workspace } from '../../../core/models/task.model';
     <div class="workspace-list-container">
       <header class="workspace-header">
         <div class="header-content">
+          <button class="btn-back" (click)="goBack()">← 返回</button>
           <h1>工作區</h1>
           <button class="btn-primary" (click)="showCreateModal = true">
             <span>+</span> 建立工作區
@@ -117,6 +118,24 @@ import { Workspace } from '../../../core/models/task.model';
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 16px;
+    }
+
+    .btn-back {
+      background: transparent;
+      border: 1px solid #e2e8f0;
+      color: #4a5568;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn-back:hover {
+      background: #f7fafc;
+      border-color: #cbd5e0;
     }
 
     .header-content h1 {
@@ -124,6 +143,7 @@ import { Workspace } from '../../../core/models/task.model';
       font-size: 28px;
       font-weight: 600;
       color: #1a202c;
+      flex: 1;
     }
 
     .btn-primary {
@@ -478,6 +498,10 @@ export class WorkspaceListComponent implements OnInit {
         this.showCreateModal = false;
         this.editingWorkspace = null;
         this.workspaceForm = { name: '', description: '' };
+    }
+
+    goBack() {
+        this.router.navigate(['/dashboard']);
     }
 }
 
