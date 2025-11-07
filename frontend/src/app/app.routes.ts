@@ -11,11 +11,11 @@ export const routes: Routes = [
         canActivate: [authGuard],
         loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent)
     },
-    // {
-    //     path: 'workspaces',
-    //     canActivate: [authGuard],
-    //     loadChildren: () => import('./features/workspace/workspace.routes')
-    // },
+    {
+        path: 'workspaces',
+        canActivate: [authGuard],
+        loadChildren: () => import('./features/workspace/workspace.routes').then(m => m.workspaceRoutes)
+    },
     // {
     //     path: 'projects/:id',
     //     canActivate: [authGuard],
