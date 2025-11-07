@@ -9,23 +9,43 @@ export interface Workspace {
     id: string;
     name: string;
     description?: string;
-    ownerId: string;
-    createdAt: Date;
-    updatedAt: Date;
+    owner_id: string;
+    owner_name?: string;
+    owner_email?: string;
+    project_count?: number | string;
+    member_count?: number | string;
+    created_at: string | Date;
+    updated_at: string | Date;
+}
+
+export interface WorkspaceMember {
+    id: string;
+    user_id: string;
+    user_name: string;
+    user_email: string;
+    user_avatar?: string;
+    role: 'owner' | 'admin' | 'member' | 'guest';
+    joined_at: string | Date;
 }
 
 export interface Project {
     id: string;
-    workspaceId: string;
+    workspace_id: string;
     name: string;
     description?: string;
     color: string;
     icon?: string;
-    viewMode: 'list' | 'board' | 'timeline' | 'calendar';
-    isArchived: boolean;
-    createdBy: string;
-    createdAt: Date;
-    updatedAt: Date;
+    view_mode: 'list' | 'board' | 'timeline' | 'calendar';
+    is_archived: boolean;
+    created_by: string;
+    creator_name?: string;
+    creator_email?: string;
+    creator_avatar?: string;
+    task_count?: number | string;
+    section_count?: number | string;
+    workspace_name?: string;
+    created_at: string | Date;
+    updated_at: string | Date;
 }
 
 export interface Section {
