@@ -65,7 +65,7 @@ import { Workspace, Project } from '../../core/models/task.model';
             <button class="btn-link" [routerLink]="['/workspaces']">查看全部</button>
           </div>
           <div class="projects-grid">
-            <div class="project-card" *ngFor="let project of recentProjects()" [routerLink]="['/projects', project.id]">
+            <div class="project-card" *ngFor="let project of recentProjects()" [routerLink]="['/projects', project.id, 'board']">
               <div class="project-color" [style.background-color]="project.color"></div>
               <div class="project-info">
                 <h4>{{ project.name }}</h4>

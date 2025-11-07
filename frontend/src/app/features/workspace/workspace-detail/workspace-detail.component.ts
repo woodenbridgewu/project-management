@@ -66,7 +66,7 @@ import { Workspace, Project } from '../../../core/models/task.model';
           </div>
 
           <div class="projects-grid" *ngIf="projects().length > 0; else emptyProjects">
-            <div class="project-card" *ngFor="let project of projects()" [routerLink]="['/projects', project.id]">
+            <div class="project-card" *ngFor="let project of projects()" [routerLink]="['/projects', project.id, 'board']">
               <div class="project-card-header">
                 <div class="project-color" [style.background-color]="project.color"></div>
                 <h3>{{ project.name }}</h3>
