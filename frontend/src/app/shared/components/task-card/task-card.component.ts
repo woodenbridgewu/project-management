@@ -23,35 +23,35 @@ import { Task } from '../../../core/models/task.model';
       
       <div class="task-footer">
         <div class="task-meta">
-          @if (task.assignee) {
+          @if (task.assignee || task.assignee_name) {
             <div class="assignee">
-              @if (task.assignee.avatarUrl) {
-                <img [src]="task.assignee.avatarUrl" [alt]="task.assignee.fullName">
+              @if (task.assignee?.avatarUrl || task.assignee_avatar) {
+                <img [src]="task.assignee?.avatarUrl || task.assignee_avatar" [alt]="task.assignee?.fullName || task.assignee_name">
               } @else {
                 <div class="avatar-placeholder">
-                  {{ getInitials(task.assignee.fullName) }}
+                  {{ getInitials(task.assignee?.fullName || task.assignee_name || '') }}
                 </div>
               }
-              <span>{{ task.assignee.fullName }}</span>
+              <span>{{ task.assignee?.fullName || task.assignee_name }}</span>
             </div>
           }
           
-          @if (task.dueDate) {
-            <div class="due-date" [class.overdue]="isOverdue(task.dueDate)">
-              <span>📅 {{ formatDate(task.dueDate) }}</span>
+          @if (task.due_date) {
+            <div class="due-date" [class.overdue]="isOverdue(task.due_date)">
+              <span>📅 {{ formatDate(task.due_date) }}</span>
             </div>
           }
         </div>
         
         <div class="task-stats">
-          @if (task.subtaskCount) {
-            <span class="stat">✓ {{ task.subtaskCount }}</span>
+          @if (task.subtask_count) {
+            <span class="stat">✓ {{ task.subtask_count }}</span>
           }
-          @if (task.commentCount) {
-            <span class="stat">💬 {{ task.commentCount }}</span>
+          @if (task.comment_count) {
+            <span class="stat">💬 {{ task.comment_count }}</span>
           }
-          @if (task.attachmentCount) {
-            <span class="stat">📎 {{ task.attachmentCount }}</span>
+          @if (task.attachment_count) {
+            <span class="stat">📎 {{ task.attachment_count }}</span>
           }
         </div>
       </div>
@@ -206,12 +206,12 @@ export class TaskCardComponent {
         return labels[priority] || priority;
     }
 
-    formatDate(date: Date): string {
+    formatDate(date: Date | string): string {
         const d = new Date(date);
         return `${d.getMonth() + 1}/${d.getDate()}`;
     }
 
-    isOverdue(dueDate: Date): boolean {
+    isOverdue(dueDate: Date | string): boolean {
         return new Date(dueDate) < new Date();
     }
 }
