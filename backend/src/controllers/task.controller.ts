@@ -78,13 +78,31 @@ export class TaskController {
             const { projectId } = req.params;
             const taskData = createTaskSchema.parse(req.body);
 
-            // 取得最大 position
-            const posResult = await query(
-                `SELECT COALESCE(MAX(position), 0) + 1 as next_position 
-         FROM tasks WHERE project_id = $1`,
+            // 取得專案的工作區 ID（用於活動紀錄）
+            const projectResult = await query(
+                `SELECT workspace_id FROM projects WHERE id = $1`,
                 [projectId]
             );
 
+            if (projectResult.rows.length === 0) {
+                return res.status(404).json({ error: 'Project not found' });
+            }
+
+            const workspaceId = projectResult.rows[0].workspace_id;
+
+            // 取得最大 position（如果指定了 sectionId，則在該區段內計算，否則在專案內計算）
+            let posQuery = `SELECT COALESCE(MAX(position), 0) + 1 as next_position 
+                           FROM tasks WHERE project_id = $1`;
+            let posParams: any[] = [projectId];
+
+            if (taskData.sectionId) {
+                posQuery += ` AND section_id = $2`;
+                posParams.push(taskData.sectionId);
+            } else {
+                posQuery += ` AND section_id IS NULL`;
+            }
+
+            const posResult = await query(posQuery, posParams);
             const position = posResult.rows[0].next_position;
 
             const result = await query(
@@ -100,7 +118,7 @@ export class TaskController {
                     taskData.title,
                     taskData.description || null,
                     taskData.assigneeId || null,
-                    taskData.priority || 'medium',
+                    taskData.priority || null,
                     taskData.dueDate || null,
                     taskData.estimatedHours || null,
                     req.user!.id,
@@ -108,16 +126,46 @@ export class TaskController {
                 ]
             );
 
-            // 記錄活動
-            await this.logActivity(
-                projectId,
-                req.user!.id,
-                'task',
-                result.rows[0].id,
-                'created'
+            const task = result.rows[0];
+
+            // 記錄活動（使用 try-catch 避免活動紀錄失敗影響主要功能）
+            try {
+                await this.logActivity(
+                    workspaceId,
+                    req.user!.id,
+                    'task',
+                    task.id,
+                    'created'
+                );
+            } catch (activityError) {
+                console.error('Failed to log activity:', activityError);
+                // 活動紀錄失敗不影響任務建立
+            }
+
+            // 取得完整的任務資訊（包含關聯資料）
+            const fullTaskResult = await query(
+                `SELECT 
+                    t.*,
+                    u.full_name as assignee_name,
+                    u.avatar_url as assignee_avatar,
+                    c.full_name as creator_name,
+                    s.name as section_name,
+                    COUNT(DISTINCT st.id) as subtask_count,
+                    COUNT(DISTINCT cm.id) as comment_count,
+                    COUNT(DISTINCT a.id) as attachment_count
+                FROM tasks t
+                LEFT JOIN users u ON t.assignee_id = u.id
+                LEFT JOIN users c ON t.creator_id = c.id
+                LEFT JOIN sections s ON t.section_id = s.id
+                LEFT JOIN tasks st ON st.parent_task_id = t.id
+                LEFT JOIN comments cm ON cm.task_id = t.id
+                LEFT JOIN task_attachments a ON a.task_id = t.id
+                WHERE t.id = $1
+                GROUP BY t.id, u.id, c.id, s.id`,
+                [task.id]
             );
 
-            res.status(201).json({ task: result.rows[0] });
+            res.status(201).json({ task: fullTaskResult.rows[0] });
         } catch (error) {
             if (error instanceof z.ZodError) {
                 return res.status(400).json({ error: error.errors });
