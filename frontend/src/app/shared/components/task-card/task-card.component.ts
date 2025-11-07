@@ -7,9 +7,13 @@ import { Task } from '../../../core/models/task.model';
     standalone: true,
     imports: [CommonModule],
     template: `
-    <div class="task-card" (click)="taskClick.emit(task)">
+    <div class="task-card">
       <div class="task-header">
-        <h3 class="task-title">{{ task.title }}</h3>
+        <h3 class="task-title" (click)="taskClick.emit(task)">{{ task.title }}</h3>
+        <div class="task-actions" (click)="$event.stopPropagation()">
+          <button class="btn-icon" (click)="onEditClick()" title="編輯">✏️</button>
+          <button class="btn-icon" (click)="onDeleteClick()" title="刪除">🗑️</button>
+        </div>
         @if (task.priority) {
           <span class="priority-badge" [class]="'priority-' + task.priority">
             {{ getPriorityLabel(task.priority) }}
@@ -87,6 +91,7 @@ import { Task } from '../../../core/models/task.model';
       justify-content: space-between;
       align-items: start;
       margin-bottom: 8px;
+      gap: 8px;
     }
     
     .task-title {
@@ -94,6 +99,37 @@ import { Task } from '../../../core/models/task.model';
       font-size: 16px;
       font-weight: 600;
       color: #24292E;
+      cursor: pointer;
+      flex: 1;
+    }
+
+    .task-title:hover {
+      color: #667eea;
+    }
+
+    .task-actions {
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .task-card:hover .task-actions {
+      opacity: 1;
+    }
+
+    .btn-icon {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .btn-icon:hover {
+      background: rgba(0, 0, 0, 0.1);
     }
     
     .priority-badge {
@@ -191,6 +227,8 @@ export class TaskCardComponent {
     @Input({ required: true }) task!: Task;
     @Output() taskClick = new EventEmitter<Task>();
     @Output() taskUpdate = new EventEmitter<Task>();
+    @Output() taskEdit = new EventEmitter<Task>();
+    @Output() taskDelete = new EventEmitter<Task>();
 
     getInitials(name: string): string {
         return name.split(' ').map(n => n[0]).join('').toUpperCase();
@@ -213,5 +251,15 @@ export class TaskCardComponent {
 
     isOverdue(dueDate: Date | string): boolean {
         return new Date(dueDate) < new Date();
+    }
+
+    onEditClick(): void {
+        this.taskEdit.emit(this.task);
+    }
+
+    onDeleteClick(): void {
+        if (confirm('確定要刪除此任務嗎？')) {
+            this.taskDelete.emit(this.task);
+        }
     }
 }
