@@ -20,7 +20,8 @@ export class AuthService {
     private readonly REFRESH_TOKEN_KEY = 'refresh_token';
 
     currentUser = signal<User | null>(null);
-    isAuthenticated = signal<boolean>(false);
+    private _isAuthenticated = signal<boolean>(false);
+    isAuthenticatedSignal = this._isAuthenticated.asReadonly();
 
     constructor() {
         this.checkAuthStatus();
@@ -46,7 +47,7 @@ export class AuthService {
         localStorage.removeItem(this.TOKEN_KEY);
         localStorage.removeItem(this.REFRESH_TOKEN_KEY);
         this.currentUser.set(null);
-        this.isAuthenticated.set(false);
+        this._isAuthenticated.set(false);
         this.router.navigate(['/auth/login']);
     }
 
@@ -66,18 +67,22 @@ export class AuthService {
         return localStorage.getItem(this.TOKEN_KEY);
     }
 
+    isAuthenticated(): boolean {
+        return this._isAuthenticated();
+    }
+
     private handleAuthSuccess(response: AuthResponse): void {
         localStorage.setItem(this.TOKEN_KEY, response.accessToken);
         localStorage.setItem(this.REFRESH_TOKEN_KEY, response.refreshToken);
         this.currentUser.set(response.user);
-        this.isAuthenticated.set(true);
+        this._isAuthenticated.set(true);
     }
 
     private checkAuthStatus(): void {
         const token = this.getToken();
         if (token) {
             // TODO: 驗證 token 並取得使用者資訊
-            this.isAuthenticated.set(true);
+            this._isAuthenticated.set(true);
         }
     }
 }
