@@ -59,4 +59,17 @@ export class TaskService {
             { sectionId, position }
         );
     }
+
+    getSubtasks(taskId: string): Observable<{ subtasks: Task[] }> {
+        return this.http.get<{ subtasks: Task[] }>(
+            `${environment.apiUrl}/tasks/${taskId}/subtasks`
+        );
+    }
+
+    createSubtask(taskId: string, subtaskData: Partial<Task>): Observable<{ subtask: Task }> {
+        return this.http.post<{ subtask: Task }>(
+            `${environment.apiUrl}/tasks/${taskId}/subtasks`,
+            subtaskData
+        );
+    }
 }
