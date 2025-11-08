@@ -99,9 +99,10 @@ export interface Tag {
 
 export interface Comment {
     id: string;
-    taskId: string;
+    task_id: string;
+    user_id: string;
     user: User;
     content: string;
-    createdAt: Date;
-    updatedAt: Date;
+    created_at: string | Date;
+    updated_at: string | Date;
 }
