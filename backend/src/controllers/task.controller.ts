@@ -21,7 +21,24 @@ export class TaskController {
 
             let queryText = `
         SELECT 
-          t.*,
+          t.id,
+          t.project_id,
+          t.section_id,
+          t.parent_task_id,
+          t.title,
+          t.description,
+          t.status,
+          t.priority,
+          t.assignee_id,
+          t.creator_id,
+          (t.due_date AT TIME ZONE 'UTC')::text as due_date,
+          (t.start_date AT TIME ZONE 'UTC')::text as start_date,
+          (t.completed_at AT TIME ZONE 'UTC')::text as completed_at,
+          t.position,
+          t.estimated_hours,
+          t.actual_hours,
+          (t.created_at AT TIME ZONE 'UTC')::text as created_at,
+          (t.updated_at AT TIME ZONE 'UTC')::text as updated_at,
           u.full_name as assignee_name,
           u.avatar_url as assignee_avatar,
           c.full_name as creator_name,
@@ -61,12 +78,14 @@ export class TaskController {
             }
 
             queryText += `
-        GROUP BY t.id, u.id, c.id, s.id
+        GROUP BY t.id, u.id, c.id, s.id, t.created_at, t.updated_at, t.due_date, t.start_date, t.completed_at
         ORDER BY t.position ASC
       `;
 
             const result = await query(queryText, params);
-            res.json({ tasks: result.rows });
+            // 轉換時間戳為 ISO 8601 格式
+            const tasks = result.rows.map((task: any) => this.formatTaskTimestamps(task));
+            res.json({ tasks });
         } catch (error) {
             console.error('Get tasks error:', error);
             res.status(500).json({ error: 'Internal server error' });
@@ -145,7 +164,24 @@ export class TaskController {
             // 取得完整的任務資訊（包含關聯資料）
             const fullTaskResult = await query(
                 `SELECT 
-                    t.*,
+                    t.id,
+                    t.project_id,
+                    t.section_id,
+                    t.parent_task_id,
+                    t.title,
+                    t.description,
+                    t.status,
+                    t.priority,
+                    t.assignee_id,
+                    t.creator_id,
+                    (t.due_date AT TIME ZONE 'UTC')::text as due_date,
+                    (t.start_date AT TIME ZONE 'UTC')::text as start_date,
+                    (t.completed_at AT TIME ZONE 'UTC')::text as completed_at,
+                    t.position,
+                    t.estimated_hours,
+                    t.actual_hours,
+                    (t.created_at AT TIME ZONE 'UTC')::text as created_at,
+                    (t.updated_at AT TIME ZONE 'UTC')::text as updated_at,
                     u.full_name as assignee_name,
                     u.avatar_url as assignee_avatar,
                     c.full_name as creator_name,
@@ -161,11 +197,13 @@ export class TaskController {
                 LEFT JOIN comments cm ON cm.task_id = t.id
                 LEFT JOIN task_attachments a ON a.task_id = t.id
                 WHERE t.id = $1
-                GROUP BY t.id, u.id, c.id, s.id`,
+                GROUP BY t.id, u.id, c.id, s.id, t.created_at, t.updated_at, t.due_date, t.start_date, t.completed_at`,
                 [task.id]
             );
 
-            res.status(201).json({ task: fullTaskResult.rows[0] });
+            // 轉換時間戳為 ISO 8601 格式
+            const formattedTask = this.formatTaskTimestamps(fullTaskResult.rows[0]);
+            res.status(201).json({ task: formattedTask });
         } catch (error) {
             if (error instanceof z.ZodError) {
                 return res.status(400).json({ error: error.errors });
@@ -228,7 +266,24 @@ export class TaskController {
             // 取得完整的任務資訊（包含關聯資料）
             const fullTaskResult = await query(
                 `SELECT 
-                    t.*,
+                    t.id,
+                    t.project_id,
+                    t.section_id,
+                    t.parent_task_id,
+                    t.title,
+                    t.description,
+                    t.status,
+                    t.priority,
+                    t.assignee_id,
+                    t.creator_id,
+                    (t.due_date AT TIME ZONE 'UTC')::text as due_date,
+                    (t.start_date AT TIME ZONE 'UTC')::text as start_date,
+                    (t.completed_at AT TIME ZONE 'UTC')::text as completed_at,
+                    t.position,
+                    t.estimated_hours,
+                    t.actual_hours,
+                    (t.created_at AT TIME ZONE 'UTC')::text as created_at,
+                    (t.updated_at AT TIME ZONE 'UTC')::text as updated_at,
                     u.full_name as assignee_name,
                     u.avatar_url as assignee_avatar,
                     c.full_name as creator_name,
@@ -244,7 +299,7 @@ export class TaskController {
                 LEFT JOIN comments cm ON cm.task_id = t.id
                 LEFT JOIN task_attachments a ON a.task_id = t.id
                 WHERE t.id = $1
-                GROUP BY t.id, u.id, c.id, s.id`,
+                GROUP BY t.id, u.id, c.id, s.id, t.created_at, t.updated_at, t.due_date, t.start_date, t.completed_at`,
                 [id]
             );
 
@@ -270,7 +325,9 @@ export class TaskController {
                 }
             }
 
-            res.json({ task: fullTaskResult.rows[0] });
+            // 轉換時間戳為 ISO 8601 格式
+            const formattedTask = this.formatTaskTimestamps(fullTaskResult.rows[0]);
+            res.json({ task: formattedTask });
         } catch (error) {
             console.error('Update task error:', error);
             res.status(500).json({ error: 'Internal server error' });
@@ -357,7 +414,24 @@ export class TaskController {
 
             const result = await query(
                 `SELECT 
-          t.*,
+          t.id,
+          t.project_id,
+          t.section_id,
+          t.parent_task_id,
+          t.title,
+          t.description,
+          t.status,
+          t.priority,
+          t.assignee_id,
+          t.creator_id,
+          (t.due_date AT TIME ZONE 'UTC')::text as due_date,
+          (t.start_date AT TIME ZONE 'UTC')::text as start_date,
+          (t.completed_at AT TIME ZONE 'UTC')::text as completed_at,
+          t.position,
+          t.estimated_hours,
+          t.actual_hours,
+          (t.created_at AT TIME ZONE 'UTC')::text as created_at,
+          (t.updated_at AT TIME ZONE 'UTC')::text as updated_at,
           json_build_object(
             'id', u.id,
             'fullName', u.full_name,
@@ -383,7 +457,7 @@ export class TaskController {
         LEFT JOIN task_tags tt ON tt.task_id = t.id
         LEFT JOIN tags tag ON tag.id = tt.tag_id
         WHERE t.id = $1
-        GROUP BY t.id, u.id, c.id`,
+        GROUP BY t.id, u.id, c.id, t.created_at, t.updated_at, t.due_date, t.start_date, t.completed_at`,
                 [id]
             );
 
@@ -391,11 +465,56 @@ export class TaskController {
                 return res.status(404).json({ error: 'Task not found' });
             }
 
-            res.json({ task: result.rows[0] });
+            // 轉換時間戳為 ISO 8601 格式
+            const formattedTask = this.formatTaskTimestamps(result.rows[0]);
+            res.json({ task: formattedTask });
         } catch (error) {
             console.error('Get task error:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
+    }
+
+    // 將任務的時間戳轉換為 ISO 8601 格式（UTC）
+    private formatTaskTimestamps(task: any): any {
+        const formattedTask = { ...task };
+        
+        // PostgreSQL 返回的時間已經是 UTC 格式的字串，需要加上 'Z' 後綴轉換為 ISO 8601
+        if (formattedTask.created_at) {
+            const createdAt = new Date(formattedTask.created_at + 'Z');
+            if (!isNaN(createdAt.getTime())) {
+                formattedTask.created_at = createdAt.toISOString();
+            }
+        }
+        
+        if (formattedTask.updated_at) {
+            const updatedAt = new Date(formattedTask.updated_at + 'Z');
+            if (!isNaN(updatedAt.getTime())) {
+                formattedTask.updated_at = updatedAt.toISOString();
+            }
+        }
+        
+        if (formattedTask.due_date) {
+            const dueDate = new Date(formattedTask.due_date + 'Z');
+            if (!isNaN(dueDate.getTime())) {
+                formattedTask.due_date = dueDate.toISOString();
+            }
+        }
+        
+        if (formattedTask.start_date) {
+            const startDate = new Date(formattedTask.start_date + 'Z');
+            if (!isNaN(startDate.getTime())) {
+                formattedTask.start_date = startDate.toISOString();
+            }
+        }
+        
+        if (formattedTask.completed_at) {
+            const completedAt = new Date(formattedTask.completed_at + 'Z');
+            if (!isNaN(completedAt.getTime())) {
+                formattedTask.completed_at = completedAt.toISOString();
+            }
+        }
+        
+        return formattedTask;
     }
 
     private async logActivity(
