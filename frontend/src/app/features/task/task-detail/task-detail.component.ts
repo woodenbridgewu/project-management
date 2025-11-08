@@ -197,6 +197,119 @@ import { Task, Project, Comment, User, Tag } from '../../../core/models/task.mod
             </div>
           </div>
 
+          <!-- 子任務區塊 -->
+          <div class="subtasks-section">
+            <div class="section-header">
+              <h3 class="section-title">子任務</h3>
+              <button class="btn-link" (click)="showSubtaskModal = true" *ngIf="!isEditing">
+                + 新增子任務
+              </button>
+            </div>
+            
+            @if (loadingSubtasks()) {
+              <div class="loading">載入中...</div>
+            } @else if (subtasks().length > 0) {
+              <div class="subtasks-list">
+                @for (subtask of subtasks(); track subtask.id) {
+                  <div class="subtask-item">
+                    <div class="subtask-checkbox">
+                      <input 
+                        type="checkbox" 
+                        [checked]="subtask.status === 'done'"
+                        (change)="toggleSubtaskStatus(subtask)"
+                      />
+                    </div>
+                    <div class="subtask-content" [class.completed]="subtask.status === 'done'">
+                      <div class="subtask-header">
+                        <span class="subtask-title" (click)="editSubtask(subtask)">{{ subtask.title }}</span>
+                        <div class="subtask-actions">
+                          <button class="btn-icon" (click)="editSubtask(subtask)" title="編輯">✏️</button>
+                          <button class="btn-icon btn-danger-icon" (click)="deleteSubtask(subtask.id)" title="刪除">🗑️</button>
+                        </div>
+                      </div>
+                      @if (subtask.description) {
+                        <p class="subtask-description">{{ subtask.description }}</p>
+                      }
+                      <div class="subtask-meta">
+                        @if (subtask.assignee_name) {
+                          <span class="subtask-assignee">指派給: {{ subtask.assignee_name }}</span>
+                        }
+                        @if (subtask.due_date) {
+                          <span class="subtask-due-date" [class.overdue]="isOverdue(subtask.due_date)">
+                            截止: {{ formatDate(subtask.due_date) }}
+                          </span>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="empty-subtasks">
+                <p>尚無子任務，點擊「新增子任務」來建立</p>
+              </div>
+            }
+          </div>
+
+          <!-- 新增/編輯子任務模態框 -->
+          <div class="modal-overlay" *ngIf="showSubtaskModal || editingSubtask" (click)="closeSubtaskModal()">
+            <div class="modal-content" (click)="$event.stopPropagation()">
+              <div class="modal-header">
+                <h2>{{ editingSubtask ? '編輯子任務' : '新增子任務' }}</h2>
+                <button class="btn-close" (click)="closeSubtaskModal()">×</button>
+              </div>
+              <form (ngSubmit)="saveSubtask()" class="modal-form">
+                <div class="form-group">
+                  <label for="subtask-title">標題 *</label>
+                  <input 
+                    type="text" 
+                    id="subtask-title" 
+                    [(ngModel)]="subtaskForm.title" 
+                    name="subtask-title"
+                    required
+                    placeholder="輸入子任務標題"
+                    maxlength="500"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="subtask-description">描述</label>
+                  <textarea 
+                    id="subtask-description" 
+                    [(ngModel)]="subtaskForm.description" 
+                    name="subtask-description"
+                    rows="3"
+                    placeholder="輸入子任務描述（選填）"
+                  ></textarea>
+                </div>
+                <div class="form-group">
+                  <label for="subtask-priority">優先級</label>
+                  <select id="subtask-priority" [(ngModel)]="subtaskForm.priority" name="subtask-priority">
+                    <option value="">無</option>
+                    <option value="low">低</option>
+                    <option value="medium">中</option>
+                    <option value="high">高</option>
+                    <option value="urgent">緊急</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="subtask-due-date">截止日期</label>
+                  <input 
+                    type="datetime-local" 
+                    id="subtask-due-date" 
+                    [(ngModel)]="subtaskForm.dueDate" 
+                    name="subtask-due-date"
+                  />
+                </div>
+                <div class="modal-actions">
+                  <button type="button" class="btn-secondary" (click)="closeSubtaskModal()">取消</button>
+                  <button type="submit" class="btn-primary" [disabled]="savingSubtask() || !subtaskForm.title.trim()">
+                    {{ savingSubtask() ? '儲存中...' : '儲存' }}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
           <!-- 標籤區塊 -->
           <div class="tags-section">
             <div class="section-header">
@@ -1295,6 +1408,7 @@ import { Task, Project, Comment, User, Tag } from '../../../core/models/task.mod
 
     .form-group input[type="text"],
     .form-group input[type="number"],
+    .form-group input[type="datetime-local"],
     .form-group textarea,
     .form-group select {
       width: 100%;
@@ -1309,6 +1423,7 @@ import { Task, Project, Comment, User, Tag } from '../../../core/models/task.mod
 
     .form-group input[type="text"]:focus,
     .form-group input[type="number"]:focus,
+    .form-group input[type="datetime-local"]:focus,
     .form-group textarea:focus,
     .form-group select:focus {
       outline: none;
@@ -1396,6 +1511,129 @@ import { Task, Project, Comment, User, Tag } from '../../../core/models/task.mod
     .empty-state p {
       margin: 0;
     }
+
+    /* 子任務區塊樣式 */
+    .subtasks-section {
+      margin-top: 32px;
+      padding-top: 32px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .subtasks-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .subtask-item {
+      display: flex;
+      gap: 12px;
+      padding: 12px;
+      background: #f7fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .subtask-item:hover {
+      background: white;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .subtask-checkbox {
+      display: flex;
+      align-items: flex-start;
+      padding-top: 2px;
+    }
+
+    .subtask-checkbox input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: #667eea;
+    }
+
+    .subtask-content {
+      flex: 1;
+    }
+
+    .subtask-content.completed {
+      opacity: 0.6;
+    }
+
+    .subtask-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .subtask-title {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 500;
+      color: #1a202c;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .subtask-content.completed .subtask-title {
+      text-decoration: line-through;
+      color: #718096;
+    }
+
+    .subtask-title:hover {
+      color: #667eea;
+    }
+
+    .subtask-actions {
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .subtask-item:hover .subtask-actions {
+      opacity: 1;
+    }
+
+    .subtask-description {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+      color: #4a5568;
+      line-height: 1.5;
+    }
+
+    .subtask-meta {
+      display: flex;
+      gap: 16px;
+      font-size: 12px;
+      color: #718096;
+    }
+
+    .subtask-assignee {
+      color: #4a5568;
+    }
+
+    .subtask-due-date {
+      color: #4a5568;
+    }
+
+    .subtask-due-date.overdue {
+      color: #e53e3e;
+      font-weight: 600;
+    }
+
+    .empty-subtasks {
+      text-align: center;
+      padding: 40px;
+      color: #a0aec0;
+    }
+
+    .empty-subtasks p {
+      margin: 0;
+    }
   `]
 })
 export class TaskDetailComponent implements OnInit, OnDestroy {
@@ -1454,6 +1692,19 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
         '#9F7AEA'  // 淺紫色
     ];
 
+    // 子任務相關
+    subtasks = signal<Task[]>([]);
+    loadingSubtasks = signal(false);
+    savingSubtask = signal(false);
+    showSubtaskModal = false;
+    editingSubtask: Task | null = null;
+    subtaskForm = {
+        title: '',
+        description: '',
+        priority: '' as '' | 'low' | 'medium' | 'high' | 'urgent',
+        dueDate: ''
+    };
+
     editForm = {
         title: '',
         description: '',
@@ -1469,6 +1720,7 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
             this.taskId = params['id'];
             this.loadTask();
             this.loadComments();
+            this.loadSubtasks();
             this.subscribeToCommentUpdates();
         });
     }
@@ -1719,6 +1971,150 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
                 this.loadingComments.set(false);
             }
         });
+    }
+
+    loadSubtasks(): void {
+        this.loadingSubtasks.set(true);
+        this.taskService.getSubtasks(this.taskId).subscribe({
+            next: (response) => {
+                this.subtasks.set(response.subtasks);
+                this.loadingSubtasks.set(false);
+            },
+            error: (error) => {
+                console.error('載入子任務失敗:', error);
+                this.loadingSubtasks.set(false);
+            }
+        });
+    }
+
+    saveSubtask(): void {
+        if (!this.subtaskForm.title.trim()) return;
+
+        this.savingSubtask.set(true);
+
+        const subtaskData: any = {
+            title: this.subtaskForm.title.trim(),
+            description: this.subtaskForm.description || undefined,
+            priority: this.subtaskForm.priority || undefined
+        };
+
+        if (this.subtaskForm.dueDate) {
+            subtaskData.dueDate = new Date(this.subtaskForm.dueDate).toISOString();
+        }
+
+        if (this.editingSubtask) {
+            // 更新子任務
+            this.taskService.updateTask(this.editingSubtask.id, subtaskData).subscribe({
+                next: () => {
+                    this.loadSubtasks();
+                    this.loadTask(); // 重新載入任務以更新子任務數量
+                    this.closeSubtaskModal();
+                    this.savingSubtask.set(false);
+                },
+                error: (error) => {
+                    console.error('更新子任務失敗:', error);
+                    alert('更新子任務失敗：' + (error.error?.error || '未知錯誤'));
+                    this.savingSubtask.set(false);
+                }
+            });
+        } else {
+            // 建立子任務
+            this.taskService.createSubtask(this.taskId, subtaskData).subscribe({
+                next: () => {
+                    this.loadSubtasks();
+                    this.loadTask(); // 重新載入任務以更新子任務數量
+                    this.closeSubtaskModal();
+                    this.savingSubtask.set(false);
+                },
+                error: (error) => {
+                    console.error('建立子任務失敗:', error);
+                    alert('建立子任務失敗：' + (error.error?.error || '未知錯誤'));
+                    this.savingSubtask.set(false);
+                }
+            });
+        }
+    }
+
+    editSubtask(subtask: Task): void {
+        this.editingSubtask = subtask;
+        this.subtaskForm = {
+            title: subtask.title,
+            description: subtask.description || '',
+            priority: subtask.priority || '',
+            dueDate: subtask.due_date ? this.formatDateForInput(subtask.due_date) : ''
+        };
+        this.showSubtaskModal = true;
+    }
+
+    deleteSubtask(subtaskId: string): void {
+        if (!confirm('確定要刪除此子任務嗎？')) {
+            return;
+        }
+
+        this.savingSubtask.set(true);
+        this.taskService.deleteTask(subtaskId).subscribe({
+            next: () => {
+                this.loadSubtasks();
+                this.loadTask(); // 重新載入任務以更新子任務數量
+                this.savingSubtask.set(false);
+            },
+            error: (error) => {
+                console.error('刪除子任務失敗:', error);
+                alert('刪除子任務失敗：' + (error.error?.error || '未知錯誤'));
+                this.savingSubtask.set(false);
+            }
+        });
+    }
+
+    toggleSubtaskStatus(subtask: Task): void {
+        const newStatus = subtask.status === 'done' ? 'todo' : 'done';
+        const updates: any = { status: newStatus };
+
+        if (newStatus === 'done') {
+            updates.completed_at = new Date().toISOString();
+        } else {
+            updates.completed_at = null;
+        }
+
+        this.savingSubtask.set(true);
+        this.taskService.updateTask(subtask.id, updates).subscribe({
+            next: () => {
+                this.loadSubtasks();
+                this.loadTask(); // 重新載入任務以更新子任務數量
+                this.savingSubtask.set(false);
+            },
+            error: (error) => {
+                console.error('更新子任務狀態失敗:', error);
+                alert('更新子任務狀態失敗：' + (error.error?.error || '未知錯誤'));
+                this.savingSubtask.set(false);
+                // 重新載入以恢復原狀態
+                this.loadSubtasks();
+            }
+        });
+    }
+
+    closeSubtaskModal(): void {
+        this.showSubtaskModal = false;
+        this.editingSubtask = null;
+        this.subtaskForm = {
+            title: '',
+            description: '',
+            priority: '',
+            dueDate: ''
+        };
+    }
+
+    formatDateForInput(date: Date | string): string {
+        if (!date) return '';
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return '';
+        // 轉換為本地時間的 datetime-local 格式 (YYYY-MM-DDTHH:mm)
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
     }
 
     subscribeToCommentUpdates(): void {
@@ -1976,6 +2372,7 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
     formatDate(date: Date | string | undefined): string {
         if (!date) return '';
         const d = new Date(date);
+        if (isNaN(d.getTime())) return '';
         return d.toLocaleDateString('zh-TW', {
             year: 'numeric',
             month: 'long',
@@ -2010,7 +2407,11 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
 
     isOverdue(date: Date | string | undefined): boolean {
         if (!date) return false;
-        return new Date(date) < new Date();
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return false;
+        // 對於子任務，只檢查日期是否過期
+        // 對於主任務，還要檢查任務是否已完成
+        return d < new Date() && !this.task()?.completed_at;
     }
 
     getInitials(name: string): string {
