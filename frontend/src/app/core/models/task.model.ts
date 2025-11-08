@@ -92,9 +92,10 @@ export interface Task {
 
 export interface Tag {
     id: string;
-    workspaceId: string;
+    workspace_id: string;
     name: string;
     color: string;
+    task_count?: number | string;
 }
 
 export interface Comment {
