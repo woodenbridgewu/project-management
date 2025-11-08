@@ -10,6 +10,7 @@ import { workspaceRouter } from './routes/workspace.routes';
 import { projectRouter } from './routes/project.routes';
 import { sectionRouter } from './routes/section.routes';
 import { taskRouter } from './routes/task.routes';
+import { commentRouter } from './routes/comment.routes';
 import { initializeWebSocket } from './websocket/index';
 
 const app = express();
@@ -17,6 +18,9 @@ const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
     cors: { origin: config.frontendUrl, credentials: true }
 });
+
+// 將 io 實例存儲在 app 中，以便控制器訪問
+app.set('io', io);
 
 // 中介軟體
 app.use(helmet());
@@ -30,6 +34,7 @@ app.use('/api/workspaces', workspaceRouter);
 app.use('/api/projects', projectRouter);
 app.use('/api/sections', sectionRouter);
 app.use('/api/tasks', taskRouter);
+app.use('/api/comments', commentRouter);
 
 // 錯誤處理
 app.use(errorHandler);
