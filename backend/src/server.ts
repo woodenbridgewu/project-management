@@ -11,6 +11,7 @@ import { projectRouter } from './routes/project.routes';
 import { sectionRouter } from './routes/section.routes';
 import { taskRouter } from './routes/task.routes';
 import { commentRouter } from './routes/comment.routes';
+import { tagRouter } from './routes/tag.routes';
 import { initializeWebSocket } from './websocket/index';
 
 const app = express();
@@ -35,6 +36,7 @@ app.use('/api/projects', projectRouter);
 app.use('/api/sections', sectionRouter);
 app.use('/api/tasks', taskRouter);
 app.use('/api/comments', commentRouter);
+app.use('/api/tags', tagRouter);
 
 // 錯誤處理
 app.use(errorHandler);
