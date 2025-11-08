@@ -474,6 +474,222 @@ export class TaskController {
         }
     }
 
+    // 取得子任務列表
+    async getSubtasks(req: AuthRequest, res: Response) {
+        try {
+            const { id } = req.params;
+
+            // 檢查父任務是否存在並取得專案 ID
+            const parentTaskResult = await query(
+                'SELECT project_id FROM tasks WHERE id = $1',
+                [id]
+            );
+
+            if (parentTaskResult.rows.length === 0) {
+                return res.status(404).json({ error: 'Parent task not found' });
+            }
+
+            const projectId = parentTaskResult.rows[0].project_id;
+
+            // 檢查專案訪問權限
+            const hasAccess = await this.checkProjectAccess(projectId, req.user!.id);
+            if (!hasAccess) {
+                return res.status(403).json({ error: 'Access denied' });
+            }
+
+            // 取得子任務列表
+            const result = await query(
+                `SELECT 
+                    t.id,
+                    t.project_id,
+                    t.section_id,
+                    t.parent_task_id,
+                    t.title,
+                    t.description,
+                    t.status,
+                    t.priority,
+                    t.assignee_id,
+                    t.creator_id,
+                    (t.due_date AT TIME ZONE 'UTC')::text as due_date,
+                    (t.start_date AT TIME ZONE 'UTC')::text as start_date,
+                    (t.completed_at AT TIME ZONE 'UTC')::text as completed_at,
+                    t.position,
+                    t.estimated_hours,
+                    t.actual_hours,
+                    (t.created_at AT TIME ZONE 'UTC')::text as created_at,
+                    (t.updated_at AT TIME ZONE 'UTC')::text as updated_at,
+                    u.full_name as assignee_name,
+                    u.avatar_url as assignee_avatar,
+                    c.full_name as creator_name
+                FROM tasks t
+                LEFT JOIN users u ON t.assignee_id = u.id
+                LEFT JOIN users c ON t.creator_id = c.id
+                WHERE t.parent_task_id = $1
+                ORDER BY t.position ASC, t.created_at ASC`,
+                [id]
+            );
+
+            // 轉換時間戳為 ISO 8601 格式
+            const subtasks = result.rows.map((task: any) => this.formatTaskTimestamps(task));
+
+            res.json({ subtasks });
+        } catch (error) {
+            console.error('Get subtasks error:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    // 建立子任務
+    async createSubtask(req: AuthRequest, res: Response) {
+        try {
+            const { id } = req.params; // 父任務 ID
+            const taskData = createTaskSchema.parse(req.body);
+
+            // 檢查父任務是否存在並取得專案和工作區 ID
+            const parentTaskResult = await query(
+                `SELECT t.project_id, p.workspace_id
+                 FROM tasks t
+                 JOIN projects p ON t.project_id = p.id
+                 WHERE t.id = $1`,
+                [id]
+            );
+
+            if (parentTaskResult.rows.length === 0) {
+                return res.status(404).json({ error: 'Parent task not found' });
+            }
+
+            const projectId = parentTaskResult.rows[0].project_id;
+            const workspaceId = parentTaskResult.rows[0].workspace_id;
+
+            // 檢查專案訪問權限
+            const hasAccess = await this.checkProjectAccess(projectId, req.user!.id);
+            if (!hasAccess) {
+                return res.status(403).json({ error: 'Access denied' });
+            }
+
+            // 取得該父任務的最大 position
+            const positionResult = await query(
+                `SELECT COALESCE(MAX(position), 0) + 1 as next_position
+                 FROM tasks
+                 WHERE parent_task_id = $1`,
+                [id]
+            );
+            const position = parseInt(positionResult.rows[0].next_position);
+
+            // 建立子任務
+            const result = await query(
+                `INSERT INTO tasks (
+                    project_id,
+                    parent_task_id,
+                    title,
+                    description,
+                    status,
+                    priority,
+                    assignee_id,
+                    creator_id,
+                    due_date,
+                    estimated_hours,
+                    position
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                RETURNING 
+                    id,
+                    project_id,
+                    section_id,
+                    parent_task_id,
+                    title,
+                    description,
+                    status,
+                    priority,
+                    assignee_id,
+                    creator_id,
+                    (due_date AT TIME ZONE 'UTC')::text as due_date,
+                    (start_date AT TIME ZONE 'UTC')::text as start_date,
+                    (completed_at AT TIME ZONE 'UTC')::text as completed_at,
+                    position,
+                    estimated_hours,
+                    actual_hours,
+                    (created_at AT TIME ZONE 'UTC')::text as created_at,
+                    (updated_at AT TIME ZONE 'UTC')::text as updated_at`,
+                [
+                    projectId,
+                    id, // parent_task_id
+                    taskData.title,
+                    taskData.description || null,
+                    'todo', // 子任務預設狀態為 todo
+                    taskData.priority || null,
+                    taskData.assigneeId || null,
+                    req.user!.id,
+                    taskData.dueDate ? new Date(taskData.dueDate) : null,
+                    taskData.estimatedHours || null,
+                    position
+                ]
+            );
+
+            const subtask = result.rows[0];
+
+            // 轉換時間戳為 ISO 8601 格式
+            const formattedSubtask = this.formatTaskTimestamps(subtask);
+
+            // 取得完整的子任務資料（包含 assignee 和 creator 資訊）
+            const fullSubtaskResult = await query(
+                `SELECT 
+                    t.id,
+                    t.project_id,
+                    t.section_id,
+                    t.parent_task_id,
+                    t.title,
+                    t.description,
+                    t.status,
+                    t.priority,
+                    t.assignee_id,
+                    t.creator_id,
+                    (t.due_date AT TIME ZONE 'UTC')::text as due_date,
+                    (t.start_date AT TIME ZONE 'UTC')::text as start_date,
+                    (t.completed_at AT TIME ZONE 'UTC')::text as completed_at,
+                    t.position,
+                    t.estimated_hours,
+                    t.actual_hours,
+                    (t.created_at AT TIME ZONE 'UTC')::text as created_at,
+                    (t.updated_at AT TIME ZONE 'UTC')::text as updated_at,
+                    u.full_name as assignee_name,
+                    u.avatar_url as assignee_avatar,
+                    c.full_name as creator_name
+                FROM tasks t
+                LEFT JOIN users u ON t.assignee_id = u.id
+                LEFT JOIN users c ON t.creator_id = c.id
+                WHERE t.id = $1`,
+                [formattedSubtask.id]
+            );
+
+            const fullSubtask = this.formatTaskTimestamps(fullSubtaskResult.rows[0]);
+
+            // Log activity
+            try {
+                await this.logActivity(
+                    workspaceId,
+                    req.user!.id,
+                    'task',
+                    fullSubtask.id,
+                    'created',
+                    { 
+                        parentTaskId: id,
+                        title: taskData.title.substring(0, 100) 
+                    }
+                );
+            } catch (activityError) {
+                console.error('Failed to log activity:', activityError);
+            }
+
+            res.status(201).json({ subtask: fullSubtask });
+        } catch (error) {
+            if (error instanceof z.ZodError) {
+                return res.status(400).json({ error: error.errors });
+            }
+            console.error('Create subtask error:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
     // 將任務的時間戳轉換為 ISO 8601 格式（UTC）
     private formatTaskTimestamps(task: any): any {
         const formattedTask = { ...task };
@@ -515,6 +731,22 @@ export class TaskController {
         }
         
         return formattedTask;
+    }
+
+    // 檢查使用者是否有權限訪問專案
+    private async checkProjectAccess(projectId: string, userId: string): Promise<boolean> {
+        const result = await query(
+            `SELECT p.workspace_id, w.owner_id, wm.role as user_role
+             FROM projects p
+             JOIN workspaces w ON p.workspace_id = w.id
+             LEFT JOIN workspace_members wm ON wm.workspace_id = w.id AND wm.user_id = $2
+             WHERE p.id = $1 AND (
+                 w.owner_id = $2 OR 
+                 wm.user_id = $2
+             )`,
+            [projectId, userId]
+        );
+        return result.rows.length > 0;
     }
 
     private async logActivity(
