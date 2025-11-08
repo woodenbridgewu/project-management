@@ -466,15 +466,15 @@ import { Task, Project, Comment, User, Tag } from '../../../core/models/task.mod
                   <div class="comment-item">
                     <div class="comment-header">
                       <div class="comment-author">
-                        @if (comment.user?.avatarUrl) {
+                        @if (comment.user.avatarUrl) {
                           <img [src]="comment.user.avatarUrl" [alt]="comment.user.fullName" class="comment-avatar">
                         } @else {
                           <div class="comment-avatar-placeholder">
-                            {{ getInitials(comment.user?.fullName || '') }}
+                            {{ getInitials(comment.user.fullName || '') }}
                           </div>
                         }
                         <div class="comment-author-info">
-                          <span class="comment-author-name">{{ comment.user?.fullName || '未知使用者' }}</span>
+                          <span class="comment-author-name">{{ comment.user.fullName || '未知使用者' }}</span>
                           <span class="comment-time">{{ formatCommentTime(comment.created_at) }}</span>
                         </div>
                       </div>
@@ -1813,7 +1813,7 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
         if (!currentUser) return false;
         
         // 檢查評論是否屬於當前使用者
-        const commentUserId = comment.user_id || comment.user?.id;
+        const commentUserId = comment.user_id || comment.user.id;
         const currentUserId = currentUser.id;
         
         return String(commentUserId) === String(currentUserId);
