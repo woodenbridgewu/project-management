@@ -6,9 +6,11 @@ import { Subscription } from 'rxjs';
 import { TaskService } from '../../../core/services/task.service';
 import { ProjectService } from '../../../core/services/project.service';
 import { CommentService } from '../../../core/services/comment.service';
+import { TagService } from '../../../core/services/tag.service';
+import { WorkspaceService } from '../../../core/services/workspace.service';
 import { WebSocketService } from '../../../core/services/websocket.service';
 import { AuthService } from '../../../core/services/auth.service';
-import { Task, Project, Comment, User } from '../../../core/models/task.model';
+import { Task, Project, Comment, User, Tag } from '../../../core/models/task.model';
 
 @Component({
     selector: 'app-task-detail',
@@ -192,6 +194,233 @@ import { Task, Project, Comment, User } from '../../../core/models/task.model';
             <div class="stat-item" *ngIf="task()?.attachment_count">
               <span class="stat-label">附件</span>
               <span class="stat-value">{{ task()?.attachment_count }}</span>
+            </div>
+          </div>
+
+          <!-- 標籤區塊 -->
+          <div class="tags-section">
+            <div class="section-header">
+              <h3 class="section-title">標籤</h3>
+              <div class="header-actions">
+                <button class="btn-link" (click)="showTagModal = true">+ 新增標籤</button>
+                <button class="btn-link" (click)="showManageTagsModal = true">管理標籤</button>
+              </div>
+            </div>
+            
+            <!-- 任務標籤列表 -->
+            <div class="task-tags-list">
+              @for (tag of task()?.tags || []; track tag.id) {
+                <span 
+                  class="tag-badge" 
+                  [style.background-color]="tag.color"
+                  [style.color]="getContrastColor(tag.color)"
+                >
+                  {{ tag.name }}
+                  <button 
+                    class="tag-remove" 
+                    (click)="removeTagFromTask(tag.id)"
+                    [style.color]="getContrastColor(tag.color)"
+                  >
+                    ×
+                  </button>
+                </span>
+              } @empty {
+                <span class="no-tags">尚無標籤</span>
+              }
+            </div>
+
+            <!-- 添加標籤 -->
+            @if (availableTags().length > 0) {
+              <div class="add-tag-section">
+                <label>添加標籤</label>
+                <div class="available-tags">
+                  @for (tag of availableTags(); track tag.id) {
+                    @if (!isTagAttached(tag.id)) {
+                      <button 
+                        class="tag-option"
+                        [style.background-color]="tag.color"
+                        [style.color]="getContrastColor(tag.color)"
+                        (click)="addTagToTask(tag.id)"
+                      >
+                        {{ tag.name }}
+                      </button>
+                    }
+                  }
+                </div>
+              </div>
+            }
+          </div>
+
+          <!-- 新增標籤模態框 -->
+          <div class="modal-overlay" *ngIf="showTagModal" (click)="closeTagModal()">
+            <div class="modal-content" (click)="$event.stopPropagation()">
+              <div class="modal-header">
+                <h2>新增標籤</h2>
+                <button class="btn-close" (click)="closeTagModal()">×</button>
+              </div>
+              <form (ngSubmit)="createTag()" class="modal-form">
+                <div class="form-group">
+                  <label for="tag-name">名稱 *</label>
+                  <input 
+                    type="text" 
+                    id="tag-name" 
+                    [(ngModel)]="newTagForm.name" 
+                    name="tag-name"
+                    required
+                    placeholder="輸入標籤名稱"
+                    maxlength="100"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="tag-color">顏色</label>
+                  <!-- 預設顏色選項 -->
+                  <div class="preset-colors">
+                    @for (presetColor of presetColors; track presetColor) {
+                      <button
+                        type="button"
+                        class="preset-color-btn"
+                        [class.active]="newTagForm.color === presetColor"
+                        [style.background-color]="presetColor"
+                        (click)="newTagForm.color = presetColor"
+                        [title]="presetColor"
+                      >
+                        @if (newTagForm.color === presetColor) {
+                          <span class="check-icon">✓</span>
+                        }
+                      </button>
+                    }
+                  </div>
+                  <!-- 自訂顏色選擇器 -->
+                  <div class="color-picker-group">
+                    <input 
+                      type="color" 
+                      id="tag-color" 
+                      [(ngModel)]="newTagForm.color" 
+                      name="tag-color"
+                    />
+                    <input 
+                      type="text" 
+                      [(ngModel)]="newTagForm.color" 
+                      name="tag-color-hex"
+                      placeholder="#808080"
+                      pattern="^#[0-9A-Fa-f]{6}$"
+                    />
+                  </div>
+                </div>
+                <div class="modal-actions">
+                  <button type="button" class="btn-secondary" (click)="closeTagModal()">取消</button>
+                  <button type="submit" class="btn-primary" [disabled]="savingTag() || !newTagForm.name.trim()">
+                    {{ savingTag() ? '建立中...' : '建立' }}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- 管理標籤模態框 -->
+          <div class="modal-overlay" *ngIf="showManageTagsModal" (click)="closeManageTagsModal()">
+            <div class="modal-content" (click)="$event.stopPropagation()">
+              <div class="modal-header">
+                <h2>管理標籤</h2>
+                <button class="btn-close" (click)="closeManageTagsModal()">×</button>
+              </div>
+              <div class="modal-body">
+                @if (loadingTags()) {
+                  <div class="loading">載入中...</div>
+                } @else if (availableTags().length > 0) {
+                  <div class="tags-management-list">
+                    @for (tag of availableTags(); track tag.id) {
+                      <div class="tag-management-item">
+                        <span 
+                          class="tag-preview" 
+                          [style.background-color]="tag.color"
+                          [style.color]="getContrastColor(tag.color)"
+                        >
+                          {{ tag.name }}
+                        </span>
+                        <div class="tag-actions">
+                          <button class="btn-icon" (click)="startEditTag(tag)" title="編輯">
+                            ✏️
+                          </button>
+                          <button class="btn-icon btn-danger-icon" (click)="confirmDeleteTag(tag)" title="刪除">
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <div class="empty-state">
+                    <p>尚無標籤，請先建立標籤</p>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+
+          <!-- 編輯標籤模態框 -->
+          <div class="modal-overlay" *ngIf="editingTag" (click)="cancelEditTag()">
+            <div class="modal-content" (click)="$event.stopPropagation()">
+              <div class="modal-header">
+                <h2>編輯標籤</h2>
+                <button class="btn-close" (click)="cancelEditTag()">×</button>
+              </div>
+              <form (ngSubmit)="updateTag()" class="modal-form">
+                <div class="form-group">
+                  <label for="edit-tag-name">名稱 *</label>
+                  <input 
+                    type="text" 
+                    id="edit-tag-name" 
+                    [(ngModel)]="editTagForm.name" 
+                    name="edit-tag-name"
+                    required
+                    placeholder="輸入標籤名稱"
+                    maxlength="100"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="edit-tag-color">顏色</label>
+                  <!-- 預設顏色選項 -->
+                  <div class="preset-colors">
+                    @for (presetColor of presetColors; track presetColor) {
+                      <button
+                        type="button"
+                        class="preset-color-btn"
+                        [class.active]="editTagForm.color === presetColor"
+                        [style.background-color]="presetColor"
+                        (click)="editTagForm.color = presetColor"
+                        [title]="presetColor"
+                      >
+                        @if (editTagForm.color === presetColor) {
+                          <span class="check-icon">✓</span>
+                        }
+                      </button>
+                    }
+                  </div>
+                  <!-- 自訂顏色選擇器 -->
+                  <div class="color-picker-group">
+                    <input 
+                      type="color" 
+                      id="edit-tag-color" 
+                      [(ngModel)]="editTagForm.color" 
+                      name="edit-tag-color"
+                    />
+                    <input 
+                      type="text" 
+                      [(ngModel)]="editTagForm.color" 
+                      name="edit-tag-color-hex"
+                      placeholder="#808080"
+                      pattern="^#[0-9A-Fa-f]{6}$"
+                    />
+                  </div>
+                </div>
+                <div class="modal-actions">
+                  <button type="button" class="btn-secondary" (click)="cancelEditTag()">取消</button>
+                  <button type="submit" class="btn-primary" [disabled]="savingTag() || !editTagForm.name.trim()">
+                    {{ savingTag() ? '更新中...' : '更新' }}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
 
@@ -668,7 +897,7 @@ import { Task, Project, Comment, User } from '../../../core/models/task.model';
 
     /* 評論區塊樣式 */
     .comments-section {
-      margin-top: 32px;
+      margin-top: 16px;
       padding-top: 32px;
       border-top: 1px solid #e2e8f0;
     }
@@ -826,6 +1055,347 @@ import { Task, Project, Comment, User } from '../../../core/models/task.model';
     .empty-comments p {
       margin: 0;
     }
+
+    /* 標籤區塊樣式 */
+    .tags-section {
+      margin-top: 32px;
+      padding-top: 32px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .task-tags-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .tag-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: default;
+    }
+
+    .tag-remove {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      padding: 0;
+      margin-left: 4px;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+
+    .tag-remove:hover {
+      opacity: 1;
+    }
+
+    .no-tags {
+      color: #a0aec0;
+      font-size: 14px;
+    }
+
+    .add-tag-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .add-tag-section label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #718096;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .available-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tag-option {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 12px;
+      border: none;
+      border-radius: 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .tag-option:hover {
+      opacity: 0.8;
+    }
+
+    .color-picker-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .color-picker-group input[type="color"] {
+      width: 50px;
+      height: 40px;
+      padding: 2px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .color-picker-group input[type="text"] {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: monospace;
+      transition: border-color 0.2s;
+      box-sizing: border-box;
+    }
+
+    .color-picker-group input[type="text"]:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    /* 預設顏色選項樣式 */
+    .preset-colors {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .preset-color-btn {
+      width: 40px;
+      height: 40px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .preset-color-btn:hover {
+      transform: scale(1.1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .preset-color-btn.active {
+      border-color: #667eea;
+      border-width: 3px;
+      box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+    }
+
+    .check-icon {
+      color: white;
+      font-size: 18px;
+      font-weight: bold;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
+    /* 模態框樣式 */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 500px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 600;
+      color: #1a202c;
+    }
+
+    .btn-close {
+      background: transparent;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #718096;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .btn-close:hover {
+      background: #f7fafc;
+    }
+
+    .modal-form {
+      padding: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #1a202c;
+    }
+
+    .form-group input[type="text"],
+    .form-group input[type="number"],
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+      box-sizing: border-box;
+    }
+
+    .form-group input[type="text"]:focus,
+    .form-group input[type="number"]:focus,
+    .form-group textarea:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .form-group textarea {
+      resize: vertical;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .modal-body {
+      padding: 24px;
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+
+    .tags-management-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .tag-management-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      background: #f7fafc;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .tag-preview {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 12px;
+      border-radius: 16px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .tag-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-icon {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .btn-icon:hover {
+      background: white;
+    }
+
+    .btn-danger-icon:hover {
+      background: #fed7d7;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #a0aec0;
+    }
+
+    .empty-state p {
+      margin: 0;
+    }
   `]
 })
 export class TaskDetailComponent implements OnInit, OnDestroy {
@@ -834,6 +1404,8 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
     private taskService = inject(TaskService);
     private projectService = inject(ProjectService);
     private commentService = inject(CommentService);
+    private tagService = inject(TagService);
+    private workspaceService = inject(WorkspaceService);
     private wsService = inject(WebSocketService);
     private authService = inject(AuthService);
 
@@ -852,6 +1424,35 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
     newCommentContent = '';
     editCommentContent = '';
     private commentSubscription?: Subscription;
+
+    // 標籤相關
+    availableTags = signal<Tag[]>([]);
+    loadingTags = signal(false);
+    savingTag = signal(false);
+    showTagModal = false;
+    showManageTagsModal = false;
+    editingTag: Tag | null = null;
+    editTagForm = {
+        name: '',
+        color: '#808080'
+    };
+    newTagForm = {
+        name: '',
+        color: '#808080'
+    };
+    workspaceId = '';
+
+    // 預設顏色選項
+    presetColors = [
+        '#808080', // 灰色
+        '#E53E3E', // 紅色
+        '#3182CE', // 藍色
+        '#D53F8C', // 粉紅色
+        '#00B5D8', // 青色
+        '#48BB78', // 淺綠色
+        '#ED8936', // 淺橙色
+        '#9F7AEA'  // 淺紫色
+    ];
 
     editForm = {
         title: '',
@@ -895,12 +1496,213 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
         this.projectService.getProjectById(projectId).subscribe({
             next: (response) => {
                 this.project.set(response.project);
+                this.workspaceId = response.project.workspace_id;
+                // 載入標籤列表
+                if (this.workspaceId) {
+                    this.loadTags();
+                }
                 // 確保 WebSocket 已連接，然後加入專案的 WebSocket 房間以接收即時更新
                 this.wsService.connect();
                 this.wsService.joinProject(projectId);
             },
             error: (error) => {
                 console.error('載入專案失敗:', error);
+            }
+        });
+    }
+
+    loadTags(): void {
+        if (!this.workspaceId) return;
+        
+        this.loadingTags.set(true);
+        this.tagService.getTagsByWorkspace(this.workspaceId).subscribe({
+            next: (response) => {
+                this.availableTags.set(response.tags);
+                this.loadingTags.set(false);
+            },
+            error: (error) => {
+                console.error('載入標籤失敗:', error);
+                this.loadingTags.set(false);
+            }
+        });
+    }
+
+    createTag(): void {
+        if (!this.newTagForm.name.trim() || !this.workspaceId) return;
+
+        // 確保 color 格式正確（必須是 # 開頭的 6 位十六進制）
+        let color = this.newTagForm.color || '#808080';
+        if (!color.startsWith('#')) {
+            color = '#' + color;
+        }
+        // 驗證顏色格式
+        if (!/^#[0-9A-Fa-f]{6}$/.test(color)) {
+            alert('顏色格式不正確，請使用 #RRGGBB 格式（例如：#808080）');
+            return;
+        }
+
+        this.savingTag.set(true);
+        this.tagService.createTag(this.workspaceId, {
+            name: this.newTagForm.name.trim(),
+            color: color
+        }).subscribe({
+            next: () => {
+                this.newTagForm = {
+                    name: '',
+                    color: '#808080'
+                };
+                this.loadTags();
+                this.loadTask(); // 重新載入任務以更新標籤顯示
+                this.closeTagModal();
+                this.savingTag.set(false);
+            },
+            error: (error) => {
+                console.error('建立標籤失敗:', error);
+                const errorMessage = error.error?.error || error.error?.message || '未知錯誤';
+                const errorDetails = error.error?.details ? JSON.stringify(error.error.details) : '';
+                alert('建立標籤失敗：' + errorMessage + (errorDetails ? '\n詳細：' + errorDetails : ''));
+                this.savingTag.set(false);
+            }
+        });
+    }
+
+    addTagToTask(tagId: string): void {
+        if (!this.task()) return;
+
+        this.savingTag.set(true);
+        this.tagService.addTagToTask(this.taskId, tagId).subscribe({
+            next: () => {
+                // 重新載入任務以獲取更新的標籤列表
+                this.loadTask();
+                this.savingTag.set(false);
+            },
+            error: (error) => {
+                console.error('添加標籤失敗:', error);
+                alert('添加標籤失敗：' + (error.error?.error || '未知錯誤'));
+                this.savingTag.set(false);
+            }
+        });
+    }
+
+    removeTagFromTask(tagId: string): void {
+        if (!this.task()) return;
+
+        if (!confirm('確定要移除這個標籤嗎？')) {
+            return;
+        }
+
+        this.savingTag.set(true);
+        this.tagService.removeTagFromTask(this.taskId, tagId).subscribe({
+            next: () => {
+                // 重新載入任務以獲取更新的標籤列表
+                this.loadTask();
+                this.savingTag.set(false);
+            },
+            error: (error) => {
+                console.error('移除標籤失敗:', error);
+                alert('移除標籤失敗：' + (error.error?.error || '未知錯誤'));
+                this.savingTag.set(false);
+            }
+        });
+    }
+
+    isTagAttached(tagId: string): boolean {
+        if (!this.task()?.tags) return false;
+        return this.task()!.tags!.some(tag => tag.id === tagId);
+    }
+
+    getContrastColor(backgroundColor: string): string {
+        // 計算對比色（白色或黑色）
+        const hex = backgroundColor.replace('#', '');
+        const r = parseInt(hex.substr(0, 2), 16);
+        const g = parseInt(hex.substr(2, 2), 16);
+        const b = parseInt(hex.substr(4, 2), 16);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        return brightness > 128 ? '#000000' : '#FFFFFF';
+    }
+
+    closeTagModal(): void {
+        this.showTagModal = false;
+        this.newTagForm = {
+            name: '',
+            color: '#808080'
+        };
+    }
+
+    closeManageTagsModal(): void {
+        this.showManageTagsModal = false;
+    }
+
+    startEditTag(tag: Tag): void {
+        this.editingTag = tag;
+        this.editTagForm = {
+            name: tag.name,
+            color: tag.color
+        };
+    }
+
+    cancelEditTag(): void {
+        this.editingTag = null;
+        this.editTagForm = {
+            name: '',
+            color: '#808080'
+        };
+    }
+
+    updateTag(): void {
+        if (!this.editingTag || !this.editTagForm.name.trim()) return;
+
+        // 確保 color 格式正確
+        let color = this.editTagForm.color || '#808080';
+        if (!color.startsWith('#')) {
+            color = '#' + color;
+        }
+        if (!/^#[0-9A-Fa-f]{6}$/.test(color)) {
+            alert('顏色格式不正確，請使用 #RRGGBB 格式（例如：#808080）');
+            return;
+        }
+
+        this.savingTag.set(true);
+        this.tagService.updateTag(this.editingTag.id, {
+            name: this.editTagForm.name.trim(),
+            color: color
+        }).subscribe({
+            next: () => {
+                this.loadTags();
+                this.loadTask(); // 重新載入任務以更新標籤顯示
+                this.cancelEditTag();
+                this.savingTag.set(false);
+            },
+            error: (error) => {
+                console.error('更新標籤失敗:', error);
+                const errorMessage = error.error?.error || error.error?.message || '未知錯誤';
+                const errorDetails = error.error?.details ? JSON.stringify(error.error.details) : '';
+                alert('更新標籤失敗：' + errorMessage + (errorDetails ? '\n詳細：' + errorDetails : ''));
+                this.savingTag.set(false);
+            }
+        });
+    }
+
+    confirmDeleteTag(tag: Tag): void {
+        if (!confirm(`確定要刪除標籤「${tag.name}」嗎？\n\n刪除後，所有使用此標籤的任務將自動移除該標籤。`)) {
+            return;
+        }
+
+        this.deleteTag(tag.id);
+    }
+
+    deleteTag(tagId: string): void {
+        this.savingTag.set(true);
+        this.tagService.deleteTag(tagId).subscribe({
+            next: () => {
+                this.loadTags();
+                this.loadTask(); // 重新載入任務以更新標籤顯示
+                this.savingTag.set(false);
+            },
+            error: (error) => {
+                console.error('刪除標籤失敗:', error);
+                alert('刪除標籤失敗：' + (error.error?.error || '未知錯誤'));
+                this.savingTag.set(false);
             }
         });
     }
