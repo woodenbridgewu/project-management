@@ -8,11 +8,12 @@ import { ProjectService } from '../../../core/services/project.service';
 import { SectionService } from '../../../core/services/section.service';
 import { WorkspaceService } from '../../../core/services/workspace.service';
 import { Task, Section, WorkspaceMember } from '../../../core/models/task.model';
+import { TaskCardComponent } from '../../../shared/components/task-card/task-card.component';
 
 @Component({
     selector: 'app-task-list',
     standalone: true,
-    imports: [CommonModule, FormsModule],
+    imports: [CommonModule, FormsModule, TaskCardComponent],
     template: `
     <div class="task-list-container">
       <div class="task-list-header">
