@@ -1,0 +1,145 @@
+<div class="workspace-detail-container">
+  <header class="workspace-header">
+    <div class="header-content">
+      <button class="btn-back" (click)="goBack()">← 返回</button>
+      <div class="header-title">
+        <h1>{{ workspace()?.name || '載入中...' }}</h1>
+        <p *ngIf="workspace()?.description" class="workspace-description">{{ workspace()?.description }}</p>
+      </div>
+      <button class="btn-primary" (click)="showCreateProjectModal = true">
+        <span>+</span> 建立專案
+      </button>
+    </div>
+  </header>
+
+  <main class="workspace-main" *ngIf="workspace()">
+    <div class="workspace-info">
+      <div class="info-card">
+        <div class="info-item">
+          <span class="info-label">擁有者</span>
+          <span class="info-value">{{ workspace()?.owner_name || '未知' }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">專案數量</span>
+          <span class="info-value">{{ workspace()?.project_count || 0 }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">成員數量</span>
+          <span class="info-value">{{ workspace()?.member_count || 0 }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="projects-section">
+      <div class="section-header">
+        <h2>專案</h2>
+        <div class="filter-tabs">
+          <button 
+            class="tab-btn" 
+            [class.active]="!showArchived"
+            (click)="toggleArchived(false)"
+          >
+            進行中
+          </button>
+          <button 
+            class="tab-btn" 
+            [class.active]="showArchived"
+            (click)="toggleArchived(true)"
+          >
+            已封存
+          </button>
+        </div>
+      </div>
+
+      <div class="projects-grid" *ngIf="projects().length > 0; else emptyProjects">
+        <div class="project-card" *ngFor="let project of projects()" [routerLink]="['/projects', project.id, 'board']">
+          <div class="project-card-header">
+            <div class="project-color" [style.background-color]="project.color"></div>
+            <h3>{{ project.name }}</h3>
+            <div class="project-actions" (click)="$event.stopPropagation()">
+              <button class="btn-icon" (click)="editProject(project)">✏️</button>
+              <button class="btn-icon" (click)="archiveProject(project.id, !project.is_archived)" *ngIf="canEditProject(project)">
+                {{ project.is_archived ? '📂' : '📦' }}
+              </button>
+              <button class="btn-icon" (click)="deleteProject(project.id)" *ngIf="canEditProject(project)">🗑️</button>
+            </div>
+          </div>
+          <p class="project-description" *ngIf="project.description">{{ project.description }}</p>
+          <div class="project-stats">
+            <div class="stat-item">
+              <span class="stat-label">任務</span>
+              <span class="stat-value">{{ project.task_count || 0 }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">區段</span>
+              <span class="stat-value">{{ project.section_count || 0 }}</span>
+            </div>
+          </div>
+          <div class="project-footer">
+            <span class="project-creator">建立者: {{ project.creator_name || '未知' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <ng-template #emptyProjects>
+        <div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <h3>還沒有專案</h3>
+          <p>{{ showArchived ? '沒有已封存的專案' : '建立您的第一個專案來開始管理任務' }}</p>
+          <button class="btn-primary" (click)="showCreateProjectModal = true" *ngIf="!showArchived">
+            建立專案
+          </button>
+        </div>
+      </ng-template>
+    </div>
+  </main>
+
+  <!-- 建立/編輯專案模態框 -->
+  <div class="modal-overlay" *ngIf="showCreateProjectModal || editingProject" (click)="closeProjectModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>{{ editingProject ? '編輯專案' : '建立專案' }}</h2>
+        <button class="btn-close" (click)="closeProjectModal()">×</button>
+      </div>
+      <form (ngSubmit)="saveProject()" class="modal-form">
+        <div class="form-group">
+          <label for="name">名稱 *</label>
+          <input 
+            type="text" 
+            id="name" 
+            [(ngModel)]="projectForm.name" 
+            name="name"
+            required
+            placeholder="輸入專案名稱"
+          />
+        </div>
+        <div class="form-group">
+          <label for="description">描述</label>
+          <textarea 
+            id="description" 
+            [(ngModel)]="projectForm.description" 
+            name="description"
+            rows="3"
+            placeholder="輸入專案描述（選填）"
+          ></textarea>
+        </div>
+        <div class="form-group">
+          <label for="color">顏色</label>
+          <input 
+            type="color" 
+            id="color" 
+            [(ngModel)]="projectForm.color" 
+            name="color"
+          />
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" (click)="closeProjectModal()">取消</button>
+          <button type="submit" class="btn-primary" [disabled]="loading() || !projectForm.name">
+            {{ loading() ? '處理中...' : (editingProject ? '更新' : '建立') }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+

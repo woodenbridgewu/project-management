@@ -1,0 +1,63 @@
+<div class="task-card">
+  <div class="task-header">
+    <h3 class="task-title" (click)="taskClick.emit(task)">{{ task.title }}</h3>
+    <div class="task-actions" (click)="$event.stopPropagation()">
+      <button class="btn-icon" (click)="onEditClick()" title="編輯">✏️</button>
+      <button class="btn-icon" (click)="onDeleteClick()" title="刪除">🗑️</button>
+    </div>
+    @if (task.priority) {
+      <span class="priority-badge" [class]="'priority-' + task.priority">
+        {{ getPriorityLabel(task.priority) }}
+      </span>
+    }
+  </div>
+  
+  @if (task.description) {
+    <p class="task-description">{{ task.description }}</p>
+  }
+  
+  <div class="task-footer">
+    <div class="task-meta">
+      @if (task.assignee || task.assignee_name) {
+        <div class="assignee">
+          @if (task.assignee?.avatarUrl || task.assignee_avatar) {
+            <img [src]="task.assignee?.avatarUrl || task.assignee_avatar" [alt]="task.assignee?.fullName || task.assignee_name">
+          } @else {
+            <div class="avatar-placeholder">
+              {{ getInitials(task.assignee?.fullName || task.assignee_name || '') }}
+            </div>
+          }
+          <span>{{ task.assignee?.fullName || task.assignee_name }}</span>
+        </div>
+      }
+      
+      @if (task.due_date) {
+        <div class="due-date" [class.overdue]="isOverdue(task.due_date)">
+          <span>📅 {{ formatDate(task.due_date) }}</span>
+        </div>
+      }
+    </div>
+    
+    <div class="task-stats">
+      @if (task.subtask_count) {
+        <span class="stat">✓ {{ task.subtask_count }}</span>
+      }
+      @if (task.comment_count) {
+        <span class="stat">💬 {{ task.comment_count }}</span>
+      }
+      @if (task.attachment_count) {
+        <span class="stat">📎 {{ task.attachment_count }}</span>
+      }
+    </div>
+  </div>
+  
+  @if (task.tags && task.tags.length > 0) {
+    <div class="task-tags">
+      @for (tag of task.tags; track tag.id) {
+        <span class="tag" [style.background-color]="tag.color">
+          {{ tag.name }}
+        </span>
+      }
+    </div>
+  }
+</div>

@@ -1,0 +1,88 @@
+<div class="workspace-list-container">
+  <header class="workspace-header">
+    <div class="header-content">
+      <button class="btn-back" (click)="goBack()">← 返回</button>
+      <h1>工作區</h1>
+      <button class="btn-primary" (click)="showCreateModal = true">
+        <span>+</span> 建立工作區
+      </button>
+    </div>
+  </header>
+
+  <main class="workspace-main">
+    <div class="workspace-grid" *ngIf="workspaces().length > 0; else emptyState">
+      <div class="workspace-card" *ngFor="let workspace of workspaces()" [routerLink]="['/workspaces', workspace.id]">
+        <div class="workspace-card-header">
+          <h3>{{ workspace.name }}</h3>
+          <div class="workspace-actions" (click)="$event.stopPropagation()">
+            <button class="btn-icon" (click)="editWorkspace(workspace)">✏️</button>
+            <button class="btn-icon" (click)="deleteWorkspace(workspace.id)" *ngIf="workspace.owner_id === currentUserId">🗑️</button>
+          </div>
+        </div>
+        <p class="workspace-description" *ngIf="workspace.description">{{ workspace.description }}</p>
+        <div class="workspace-stats">
+          <div class="stat-item">
+            <span class="stat-label">專案</span>
+            <span class="stat-value">{{ workspace.project_count || 0 }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">成員</span>
+            <span class="stat-value">{{ workspace.member_count || 0 }}</span>
+          </div>
+        </div>
+        <div class="workspace-footer">
+          <span class="workspace-owner">擁有者: {{ workspace.owner_name || '未知' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <ng-template #emptyState>
+      <div class="empty-state">
+        <div class="empty-icon">📁</div>
+        <h2>還沒有工作區</h2>
+        <p>建立您的第一個工作區來開始管理專案</p>
+        <button class="btn-primary" (click)="showCreateModal = true">建立工作區</button>
+      </div>
+    </ng-template>
+  </main>
+
+  <!-- 建立/編輯工作區模態框 -->
+  <div class="modal-overlay" *ngIf="showCreateModal || editingWorkspace" (click)="closeModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>{{ editingWorkspace ? '編輯工作區' : '建立工作區' }}</h2>
+        <button class="btn-close" (click)="closeModal()">×</button>
+      </div>
+      <form (ngSubmit)="saveWorkspace()" class="modal-form">
+        <div class="form-group">
+          <label for="name">名稱 *</label>
+          <input 
+            type="text" 
+            id="name" 
+            [(ngModel)]="workspaceForm.name" 
+            name="name"
+            required
+            placeholder="輸入工作區名稱"
+          />
+        </div>
+        <div class="form-group">
+          <label for="description">描述</label>
+          <textarea 
+            id="description" 
+            [(ngModel)]="workspaceForm.description" 
+            name="description"
+            rows="3"
+            placeholder="輸入工作區描述（選填）"
+          ></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" (click)="closeModal()">取消</button>
+          <button type="submit" class="btn-primary" [disabled]="loading() || !workspaceForm.name">
+            {{ loading() ? '處理中...' : (editingWorkspace ? '更新' : '建立') }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+

@@ -1,0 +1,72 @@
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="auth-header">
+      <h1>歡迎回來</h1>
+      <p>登入您的帳號以繼續</p>
+    </div>
+
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="auth-form">
+      @if (errorMessage()) {
+        <div class="error-message">
+          {{ errorMessage() }}
+        </div>
+      }
+
+      <div class="form-group">
+        <label for="email">電子郵件</label>
+        <input
+          id="email"
+          type="email"
+          formControlName="email"
+          placeholder="your@email.com"
+          [class.error]="isFieldInvalid('email')"
+        />
+        @if (isFieldInvalid('email')) {
+          <span class="field-error">
+            @if (loginForm.get('email')?.errors?.['required']) {
+              請輸入電子郵件
+            } @else if (loginForm.get('email')?.errors?.['email']) {
+              請輸入有效的電子郵件格式
+            }
+          </span>
+        }
+      </div>
+
+      <div class="form-group">
+        <label for="password">密碼</label>
+        <input
+          id="password"
+          type="password"
+          formControlName="password"
+          placeholder="請輸入密碼"
+          [class.error]="isFieldInvalid('password')"
+        />
+        @if (isFieldInvalid('password')) {
+          <span class="field-error">
+            請輸入密碼
+          </span>
+        }
+      </div>
+
+      <button
+        type="submit"
+        class="btn-primary"
+        [disabled]="loginForm.invalid || loading()"
+      >
+        @if (loading()) {
+          <span>登入中...</span>
+        } @else {
+          <span>登入</span>
+        }
+      </button>
+    </form>
+
+    <div class="auth-footer">
+      <p>
+        還沒有帳號？
+        <a routerLink="/auth/register" class="link">立即註冊</a>
+      </p>
+    </div>
+  </div>
+</div>
+

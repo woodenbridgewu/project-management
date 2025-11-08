@@ -1,0 +1,69 @@
+<div class="dashboard-container">
+  <header class="dashboard-header">
+    <div class="header-content">
+      <h1>專案管理系統</h1>
+      <div class="user-info">
+        <span>歡迎，{{ currentUser()?.fullName || '使用者' }}</span>
+        <button (click)="logout()" class="btn-logout">登出</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="dashboard-main">
+    <div class="welcome-card">
+      <h2>歡迎使用專案管理系統</h2>
+      <p>開始管理您的專案和任務</p>
+      
+      <div class="quick-actions">
+        <div class="action-card">
+          <h3>工作區</h3>
+          <p>管理您的工作區</p>
+          <button class="btn-primary" [routerLink]="['/workspaces']">查看工作區</button>
+        </div>
+        
+        <div class="action-card">
+          <h3>專案</h3>
+          <p>建立和管理專案</p>
+          <button class="btn-primary" [routerLink]="['/workspaces']">查看專案</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="workspaces-section" *ngIf="workspaces().length > 0">
+      <div class="section-header">
+        <h3>我的工作區</h3>
+        <button class="btn-link" [routerLink]="['/workspaces']">查看全部</button>
+      </div>
+      <div class="workspaces-grid">
+        <div class="workspace-card" *ngFor="let workspace of workspaces().slice(0, 3)" [routerLink]="['/workspaces', workspace.id]">
+          <h4>{{ workspace.name }}</h4>
+          <p *ngIf="workspace.description" class="workspace-desc">{{ workspace.description }}</p>
+          <div class="workspace-meta">
+            <span>{{ workspace.project_count || 0 }} 個專案</span>
+            <span>{{ workspace.member_count || 0 }} 位成員</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="projects-section" *ngIf="recentProjects().length > 0">
+      <div class="section-header">
+        <h3>最近的專案</h3>
+        <button class="btn-link" [routerLink]="['/workspaces']">查看全部</button>
+      </div>
+      <div class="projects-grid">
+        <div class="project-card" *ngFor="let project of recentProjects()" [routerLink]="['/projects', project.id, 'board']">
+          <div class="project-color" [style.background-color]="project.color"></div>
+          <div class="project-info">
+            <h4>{{ project.name }}</h4>
+            <p *ngIf="project.description" class="project-desc">{{ project.description }}</p>
+            <div class="project-meta">
+              <span>{{ project.task_count || 0 }} 個任務</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+

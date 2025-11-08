@@ -1,0 +1,139 @@
+<div class="board-container">
+  <div class="board-header">
+    <div class="header-left">
+      <button class="btn-back" (click)="goBack()">← 返回</button>
+      <h2>{{ projectName() || '看板視圖' }}</h2>
+    </div>
+    <button class="btn-primary" (click)="showCreateSectionModal = true">
+      + 新增區段
+    </button>
+  </div>
+  
+  <div class="board" cdkDropListGroup *ngIf="sections().length > 0; else emptyState">
+    @for (section of sections(); track section.id) {
+      <div class="board-column">
+        <div class="column-header">
+          <div class="column-title">
+            <h3>{{ section.name }}</h3>
+            <span class="task-count">{{ section.task_count || section.tasks?.length || 0 }}</span>
+          </div>
+          <div class="column-actions" (click)="$event.stopPropagation()">
+            <button class="btn-icon" (click)="editSection(section)">✏️</button>
+            <button class="btn-icon" (click)="deleteSection(section.id)">🗑️</button>
+          </div>
+        </div>
+        
+        <div 
+          class="column-content"
+          cdkDropList
+          [id]="section.id"
+          [cdkDropListData]="section.tasks || []"
+          (cdkDropListDropped)="onDrop($event)">
+          
+          @for (task of section.tasks || []; track task.id) {
+            <div class="task-card-wrapper" cdkDrag>
+              <app-task-card 
+                [task]="task"
+                (taskClick)="openTaskDetail(task)"
+                (taskEdit)="editTask(task)"
+                (taskDelete)="deleteTask(task)">
+              </app-task-card>
+            </div>
+          }
+          
+          <button class="add-task-btn" (click)="addTask(section.id)">
+            + 新增任務
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+
+  <ng-template #emptyState>
+    <div class="empty-state">
+      <div class="empty-icon">📋</div>
+      <h3>還沒有區段</h3>
+      <p>建立第一個區段來開始管理任務</p>
+      <button class="btn-primary" (click)="showCreateSectionModal = true">建立區段</button>
+    </div>
+  </ng-template>
+</div>
+
+<!-- 建立/編輯區段模態框 -->
+<div class="modal-overlay" *ngIf="showCreateSectionModal || editingSection" (click)="closeSectionModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>{{ editingSection ? '編輯區段' : '建立區段' }}</h2>
+      <button class="btn-close" (click)="closeSectionModal()">×</button>
+    </div>
+    <form (ngSubmit)="saveSection()" class="modal-form">
+      <div class="form-group">
+        <label for="section-name">名稱 *</label>
+        <input 
+          type="text" 
+          id="section-name" 
+          [(ngModel)]="sectionForm.name" 
+          name="section-name"
+          required
+          placeholder="輸入區段名稱"
+        />
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" (click)="closeSectionModal()">取消</button>
+        <button type="submit" class="btn-primary" [disabled]="loading() || !sectionForm.name">
+          {{ loading() ? '處理中...' : (editingSection ? '更新' : '建立') }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 建立任務模態框 -->
+<div class="modal-overlay" *ngIf="showCreateTaskModal" (click)="closeTaskModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>建立任務</h2>
+      <button class="btn-close" (click)="closeTaskModal()">×</button>
+    </div>
+    <form (ngSubmit)="saveTask()" class="modal-form">
+      <div class="form-group">
+        <label for="task-title">標題 *</label>
+        <input 
+          type="text" 
+          id="task-title" 
+          [(ngModel)]="taskForm.title" 
+          name="task-title"
+          required
+          placeholder="輸入任務標題"
+        />
+      </div>
+      <div class="form-group">
+        <label for="task-description">描述</label>
+        <textarea 
+          id="task-description" 
+          [(ngModel)]="taskForm.description" 
+          name="task-description"
+          rows="3"
+          placeholder="輸入任務描述（選填）"
+        ></textarea>
+      </div>
+      <div class="form-group">
+        <label for="task-priority">優先級</label>
+        <select id="task-priority" [(ngModel)]="taskForm.priority" name="task-priority">
+          <option value="">無</option>
+          <option value="low">低</option>
+          <option value="medium">中</option>
+          <option value="high">高</option>
+          <option value="urgent">緊急</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" (click)="closeTaskModal()">取消</button>
+        <button type="submit" class="btn-primary" [disabled]="loading() || !taskForm.title">
+          {{ loading() ? '處理中...' : '建立' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
