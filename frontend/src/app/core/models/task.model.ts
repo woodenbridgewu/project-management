@@ -3,6 +3,9 @@ export interface User {
     email: string;
     fullName: string;
     avatarUrl?: string;
+    timezone?: string;
+    createdAt?: string | Date;
+    updatedAt?: string | Date;
 }
 
 export interface Workspace {

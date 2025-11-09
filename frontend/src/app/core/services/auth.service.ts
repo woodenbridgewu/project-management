@@ -78,6 +78,10 @@ export class AuthService {
         return this._isAuthenticated();
     }
 
+    getCurrentUser(): Observable<{ user: User }> {
+        return this.http.get<{ user: User }>(`${environment.apiUrl}/auth/me`);
+    }
+
     private handleAuthSuccess(response: AuthResponse): void {
         localStorage.setItem(this.TOKEN_KEY, response.accessToken);
         localStorage.setItem(this.REFRESH_TOKEN_KEY, response.refreshToken);
@@ -90,7 +94,7 @@ export class AuthService {
     private checkAuthStatus(): void {
         const token = this.getToken();
         if (token) {
-            // 從 localStorage 恢復用戶資料
+            // 從 localStorage 恢復用戶資料（快速恢復）
             const userJson = localStorage.getItem(this.USER_KEY);
             if (userJson) {
                 try {
@@ -101,13 +105,30 @@ export class AuthService {
                     console.error('Failed to parse user data from localStorage:', error);
                     // 如果解析失敗，清除無效的資料
                     localStorage.removeItem(this.USER_KEY);
-                    this._isAuthenticated.set(false);
                 }
-            } else {
-                // 有 token 但沒有用戶資料，仍然設為已認證（但 currentUser 為 null）
-                // 這種情況可能需要重新獲取用戶資訊，但為了向後兼容，先設為已認證
-                this._isAuthenticated.set(true);
             }
+
+            // 嘗試從 API 獲取最新的用戶資訊（驗證 token 並更新用戶資料）
+            this.getCurrentUser().subscribe({
+                next: (response) => {
+                    // 更新用戶資料
+                    localStorage.setItem(this.USER_KEY, JSON.stringify(response.user));
+                    this.currentUser.set(response.user);
+                    this._isAuthenticated.set(true);
+                },
+                error: (error) => {
+                    // Token 無效或過期，清除認證狀態
+                    console.error('Failed to get current user:', error);
+                    if (error.status === 401) {
+                        // Token 無效，清除所有認證資料
+                        localStorage.removeItem(this.TOKEN_KEY);
+                        localStorage.removeItem(this.REFRESH_TOKEN_KEY);
+                        localStorage.removeItem(this.USER_KEY);
+                        this.currentUser.set(null);
+                        this._isAuthenticated.set(false);
+                    }
+                }
+            });
         }
     }
 }
