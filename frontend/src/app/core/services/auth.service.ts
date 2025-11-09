@@ -108,27 +108,48 @@ export class AuthService {
                 }
             }
 
-            // 嘗試從 API 獲取最新的用戶資訊（驗證 token 並更新用戶資料）
-            this.getCurrentUser().subscribe({
-                next: (response) => {
-                    // 更新用戶資料
-                    localStorage.setItem(this.USER_KEY, JSON.stringify(response.user));
-                    this.currentUser.set(response.user);
-                    this._isAuthenticated.set(true);
-                },
-                error: (error) => {
-                    // Token 無效或過期，清除認證狀態
-                    console.error('Failed to get current user:', error);
-                    if (error.status === 401) {
-                        // Token 無效，清除所有認證資料
-                        localStorage.removeItem(this.TOKEN_KEY);
-                        localStorage.removeItem(this.REFRESH_TOKEN_KEY);
-                        localStorage.removeItem(this.USER_KEY);
-                        this.currentUser.set(null);
-                        this._isAuthenticated.set(false);
-                    }
+            // 延遲調用 API，避免在構造函數中立即觸發 HTTP 請求導致循環依賴
+            // 再次檢查 token 是否存在（可能在延遲期間被清除）
+            setTimeout(() => {
+                const currentToken = this.getToken();
+                if (!currentToken) {
+                    // Token 已被清除，不需要調用 API
+                    return;
                 }
-            });
+
+                // 嘗試從 API 獲取最新的用戶資訊（驗證 token 並更新用戶資料）
+                this.getCurrentUser().subscribe({
+                    next: (response) => {
+                        // 更新用戶資料
+                        localStorage.setItem(this.USER_KEY, JSON.stringify(response.user));
+                        this.currentUser.set(response.user);
+                        this._isAuthenticated.set(true);
+                    },
+                    error: (error) => {
+                        // Token 無效或過期，清除認證狀態
+                        // 靜默處理 401 錯誤和 "No token provided" 錯誤，避免在 console 中顯示不必要的錯誤訊息
+                        if (error.status === 401 || 
+                            (error.error && (error.error.error === 'No token provided' || error.error.error === 'Invalid token' || error.error.error === 'Unauthorized'))) {
+                            // Token 無效或不存在，清除所有認證資料
+                            localStorage.removeItem(this.TOKEN_KEY);
+                            localStorage.removeItem(this.REFRESH_TOKEN_KEY);
+                            localStorage.removeItem(this.USER_KEY);
+                            this.currentUser.set(null);
+                            this._isAuthenticated.set(false);
+                        } else {
+                            // 其他錯誤才記錄到 console
+                            console.error('Failed to get current user:', error);
+                        }
+                    }
+                });
+            }, 0);
+        } else {
+            // 沒有 token，清除所有認證資料
+            localStorage.removeItem(this.TOKEN_KEY);
+            localStorage.removeItem(this.REFRESH_TOKEN_KEY);
+            localStorage.removeItem(this.USER_KEY);
+            this.currentUser.set(null);
+            this._isAuthenticated.set(false);
         }
     }
 }

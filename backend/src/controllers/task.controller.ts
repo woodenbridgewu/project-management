@@ -218,6 +218,18 @@ export class TaskController {
             const { id } = req.params;
             const updates = req.body;
 
+            // 先取得更新前的任務資料，用於比較
+            const oldTaskResult = await query(
+                'SELECT title, description, status, priority, assignee_id, due_date, estimated_hours, parent_task_id, project_id FROM tasks WHERE id = $1',
+                [id]
+            );
+
+            if (oldTaskResult.rows.length === 0) {
+                return res.status(404).json({ error: 'Task not found' });
+            }
+
+            const oldTask = oldTaskResult.rows[0];
+
             // 欄位名稱對應（camelCase -> snake_case）
             const fieldMapping: Record<string, string> = {
                 sectionId: 'section_id',
@@ -306,19 +318,93 @@ export class TaskController {
             // 記錄活動（需要 workspace_id）
             const projectResult = await query(
                 `SELECT workspace_id FROM projects WHERE id = $1`,
-                [result.rows[0].project_id]
+                [oldTask.project_id]
             );
 
             if (projectResult.rows.length > 0) {
                 try {
-                    await this.logActivity(
-                        projectResult.rows[0].workspace_id,
-                        req.user!.id,
-                        'task',
-                        id,
-                        'updated',
-                        updates
+                    // 檢查是否為子任務（有 parent_task_id）
+                    const isSubtask = oldTask.parent_task_id !== null;
+                    const taskTitle = fullTaskResult.rows[0].title;
+                    const taskDescription = fullTaskResult.rows[0].description;
+                    
+                    // 準備活動記錄的 changes，只記錄實際改變的欄位
+                    const activityChanges: any = {};
+                    
+                    // 記錄任務標題（用於顯示）
+                    if (isSubtask) {
+                        activityChanges.parentTaskId = oldTask.parent_task_id;
+                        activityChanges.subtaskTitle = taskTitle ? taskTitle.substring(0, 50) : '';
+                    } else {
+                        activityChanges.taskTitle = taskTitle ? taskTitle.substring(0, 50) : '';
+                    }
+                    
+                    // 只記錄實際改變的欄位（比較新舊值）
+                    if (updates.title !== undefined && updates.title !== oldTask.title) {
+                        activityChanges.newTitle = updates.title.substring(0, 50);
+                    }
+                    
+                    if (updates.description !== undefined) {
+                        const newDesc = updates.description || '';
+                        const oldDesc = oldTask.description || '';
+                        if (newDesc !== oldDesc) {
+                            activityChanges.newDescription = newDesc ? newDesc.substring(0, 100) : '';
+                        }
+                    }
+                    
+                    if (updates.status !== undefined && updates.status !== oldTask.status) {
+                        activityChanges.newStatus = updates.status;
+                        // 如果是子任務且狀態變為 done，標記為完成
+                        if (isSubtask && updates.status === 'done') {
+                            activityChanges.completed = true;
+                        }
+                    }
+                    
+                    if (updates.priority !== undefined && updates.priority !== oldTask.priority) {
+                        activityChanges.newPriority = updates.priority;
+                    }
+                    
+                    if (updates.assigneeId !== undefined) {
+                        const newAssigneeId = updates.assigneeId || null;
+                        const oldAssigneeId = oldTask.assignee_id || null;
+                        if (String(newAssigneeId) !== String(oldAssigneeId)) {
+                            activityChanges.newAssigneeId = updates.assigneeId;
+                        }
+                    }
+                    
+                    if (updates.dueDate !== undefined) {
+                        const newDueDate = updates.dueDate ? new Date(updates.dueDate).toISOString() : null;
+                        const oldDueDate = oldTask.due_date ? new Date(oldTask.due_date).toISOString() : null;
+                        if (newDueDate !== oldDueDate) {
+                            activityChanges.newDueDate = updates.dueDate;
+                        }
+                    }
+                    
+                    if (updates.estimatedHours !== undefined) {
+                        const newHours = updates.estimatedHours || null;
+                        const oldHours = oldTask.estimated_hours || null;
+                        if (newHours !== oldHours) {
+                            activityChanges.newEstimatedHours = updates.estimatedHours;
+                        }
+                    }
+                    
+                    // 只有當有實際改變時才記錄活動
+                    const hasChanges = Object.keys(activityChanges).some(key => 
+                        key !== 'parentTaskId' && 
+                        key !== 'subtaskTitle' && 
+                        key !== 'taskTitle'
                     );
+                    
+                    if (hasChanges) {
+                        await this.logActivity(
+                            projectResult.rows[0].workspace_id,
+                            req.user!.id,
+                            'task',
+                            id,
+                            'updated',
+                            activityChanges
+                        );
+                    }
                 } catch (activityError) {
                     console.error('Failed to log activity:', activityError);
                     // 活動紀錄失敗不影響任務更新
@@ -338,9 +424,9 @@ export class TaskController {
         try {
             const { id } = req.params;
 
-            // 先取得任務的 project_id，以便後續取得 workspace_id
+            // 先取得任務的 project_id、parent_task_id 和 title，以便後續取得 workspace_id 和記錄活動
             const taskResult = await query(
-                'SELECT project_id FROM tasks WHERE id = $1',
+                'SELECT project_id, parent_task_id, title FROM tasks WHERE id = $1',
                 [id]
             );
 
@@ -349,6 +435,8 @@ export class TaskController {
             }
 
             const projectId = taskResult.rows[0].project_id;
+            const parentTaskId = taskResult.rows[0].parent_task_id;
+            const taskTitle = taskResult.rows[0].title;
 
             // 取得 workspace_id 用於活動記錄
             const projectResult = await query(
@@ -369,12 +457,22 @@ export class TaskController {
             // 記錄活動（使用 try-catch 避免活動紀錄失敗影響主要功能）
             if (projectResult.rows.length > 0) {
                 try {
+                    // 如果是子任務，在 changes 中包含 parentTaskId 和標題
+                    const activityChanges: any = {};
+                    if (parentTaskId) {
+                        activityChanges.parentTaskId = parentTaskId;
+                        activityChanges.subtaskTitle = taskTitle ? taskTitle.substring(0, 50) : '';
+                    } else {
+                        activityChanges.taskTitle = taskTitle ? taskTitle.substring(0, 50) : '';
+                    }
+                    
                     await this.logActivity(
                         projectResult.rows[0].workspace_id,
                         req.user!.id,
                         'task',
                         id,
-                        'deleted'
+                        'deleted',
+                        activityChanges
                     );
                 } catch (activityError) {
                     console.error('Failed to log activity:', activityError);
@@ -394,12 +492,46 @@ export class TaskController {
             const { id } = req.params;
             const { sectionId, position } = req.body;
 
+            // 取得任務的 workspace_id 用於活動記錄
+            const taskResult = await query(
+                `SELECT t.project_id, p.workspace_id, t.section_id as old_section_id
+                 FROM tasks t
+                 JOIN projects p ON t.project_id = p.id
+                 WHERE t.id = $1`,
+                [id]
+            );
+
+            if (taskResult.rows.length === 0) {
+                return res.status(404).json({ error: 'Task not found' });
+            }
+
+            const workspaceId = taskResult.rows[0].workspace_id;
+            const oldSectionId = taskResult.rows[0].old_section_id;
+
             await query(
                 `UPDATE tasks 
          SET section_id = $1, position = $2, updated_at = NOW()
          WHERE id = $3`,
                 [sectionId, position, id]
             );
+
+            // 記錄活動
+            try {
+                await this.logActivity(
+                    workspaceId,
+                    req.user!.id,
+                    'task',
+                    id,
+                    'moved',
+                    { 
+                        oldSectionId,
+                        newSectionId: sectionId,
+                        position
+                    }
+                );
+            } catch (activityError) {
+                console.error('Failed to log activity:', activityError);
+            }
 
             res.json({ message: 'Task moved successfully' });
         } catch (error) {
@@ -673,7 +805,7 @@ export class TaskController {
                     'created',
                     { 
                         parentTaskId: id,
-                        title: taskData.title.substring(0, 100) 
+                        subtaskTitle: taskData.title.substring(0, 50)
                     }
                 );
             } catch (activityError) {

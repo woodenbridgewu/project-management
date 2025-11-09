@@ -122,3 +122,15 @@ export interface Attachment {
     uploaded_at: string | Date;
     user?: User;
 }
+
+export interface Activity {
+    id: string;
+    workspace_id: string;
+    user_id: string;
+    entity_type: string;
+    entity_id: string;
+    action: string;
+    changes?: any;
+    created_at: string | Date;
+    user?: User;
+}

@@ -594,6 +594,124 @@
         </div>
       }
 
+      <!-- 活動紀錄區塊 -->
+      @if (!isEditing) {
+        <div class="activities-section">
+          <div class="activities-header">
+            <h3 class="section-title">活動紀錄</h3>
+            <button 
+              class="btn-link activities-toggle" 
+              (click)="onActivitiesToggle()"
+              type="button"
+            >
+              {{ activitiesExpanded() ? '收起' : '展開' }}
+              @if (activitiesTotal() > 0) {
+                ({{ activitiesTotal() }})
+              }
+            </button>
+          </div>
+          
+          @if (activitiesExpanded()) {
+            @if (loadingActivities()) {
+              <div class="loading-activities">載入活動紀錄中...</div>
+            } @else {
+              <div class="activities-list">
+                @for (activity of activities(); track activity.id) {
+                  <div class="activity-item">
+                    <div class="activity-avatar">
+                      @if (activity.user?.avatarUrl) {
+                        <img [src]="activity.user?.avatarUrl" [alt]="activity.user?.fullName || ''" class="activity-avatar-img">
+                      } @else {
+                        <div class="activity-avatar-placeholder">
+                          {{ getInitials(activity.user?.fullName || '') }}
+                        </div>
+                      }
+                    </div>
+                    <div class="activity-content">
+                      <div class="activity-description">
+                        {{ getActivityDescription(activity) }}
+                      </div>
+                      <div class="activity-time">
+                        {{ formatCommentTime(activity.created_at) }}
+                      </div>
+                    </div>
+                  </div>
+                } @empty {
+                  <div class="empty-activities">
+                    <p>尚無活動紀錄</p>
+                  </div>
+                }
+              </div>
+              
+              <!-- 分頁控制 -->
+              @if (activities().length > 0) {
+                <div class="activities-pagination">
+                  <div class="pagination-controls">
+                    <button 
+                      class="btn-link pagination-btn"
+                      [disabled]="activitiesCurrentPage() === 1 || loadingActivities()"
+                      (click)="loadActivitiesFirstPage()"
+                      type="button"
+                      title="第一頁"
+                    >
+                      ⏮️
+                    </button>
+                    <button 
+                      class="btn-link pagination-btn"
+                      [disabled]="activitiesCurrentPage() === 1 || loadingActivities()"
+                      (click)="loadActivitiesPrevPage()"
+                      type="button"
+                      title="上一頁"
+                    >
+                      ←
+                    </button>
+                    
+                    <!-- 頁碼選擇 -->
+                    <div class="pagination-pages">
+                      @for (pageNum of getActivitiesPageNumbers(); track pageNum) {
+                        <button
+                          class="pagination-page-btn"
+                          [class.active]="pageNum === activitiesCurrentPage()"
+                          [disabled]="loadingActivities()"
+                          (click)="goToActivitiesPage(pageNum)"
+                          type="button"
+                        >
+                          {{ pageNum }}
+                        </button>
+                      }
+                    </div>
+                    
+                    <button 
+                      class="btn-link pagination-btn"
+                      [disabled]="activitiesCurrentPage() >= activitiesTotalPages() || loadingActivities()"
+                      (click)="loadActivitiesNextPage()"
+                      type="button"
+                      title="下一頁"
+                    >
+                      →
+                    </button>
+                    <button 
+                      class="btn-link pagination-btn"
+                      [disabled]="activitiesCurrentPage() >= activitiesTotalPages() || loadingActivities()"
+                      (click)="loadActivitiesLastPage()"
+                      type="button"
+                      title="最後一頁"
+                    >
+                      ⏭️
+                    </button>
+                  </div>
+                  
+                  <div class="pagination-info">
+                    <span>第 {{ activitiesCurrentPage() }} / {{ activitiesTotalPages() }} 頁</span>
+                    <span class="pagination-total">（共 {{ activitiesTotal() }} 筆）</span>
+                  </div>
+                </div>
+              }
+            }
+          }
+        </div>
+      }
+
       <!-- 評論區塊 -->
       @if (!isEditing) {
         <div class="comments-section">

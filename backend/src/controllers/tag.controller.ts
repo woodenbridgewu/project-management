@@ -277,11 +277,32 @@ export class TagController {
                 return res.status(400).json({ error: 'Tag already added to this task' });
             }
 
+            // 取得標籤名稱用於活動記錄
+            const tagNameResult = await query(
+                'SELECT name FROM tags WHERE id = $1',
+                [tagId]
+            );
+            const tagName = tagNameResult.rows[0]?.name || '標籤';
+
             // 添加標籤到任務
             await query(
                 'INSERT INTO task_tags (task_id, tag_id) VALUES ($1, $2)',
                 [taskId, tagId]
             );
+
+            // 記錄活動
+            try {
+                await this.logActivity(
+                    workspaceId,
+                    req.user!.id,
+                    'tag',
+                    tagId,
+                    'added_to_task',
+                    { taskId, tagName }
+                );
+            } catch (activityError) {
+                console.error('Failed to log activity:', activityError);
+            }
 
             res.status(201).json({ message: 'Tag added to task successfully' });
         } catch (error) {
@@ -316,6 +337,13 @@ export class TagController {
                 return res.status(403).json({ error: 'Access denied' });
             }
 
+            // 取得標籤名稱用於活動記錄
+            const tagNameResult = await query(
+                'SELECT name FROM tags WHERE id = $1',
+                [tagId]
+            );
+            const tagName = tagNameResult.rows[0]?.name || '標籤';
+
             // 移除標籤
             const result = await query(
                 'DELETE FROM task_tags WHERE task_id = $1 AND tag_id = $2',
@@ -326,10 +354,40 @@ export class TagController {
                 return res.status(404).json({ error: 'Tag not found on this task' });
             }
 
+            // 記錄活動
+            try {
+                await this.logActivity(
+                    workspaceId,
+                    req.user!.id,
+                    'tag',
+                    tagId,
+                    'removed_from_task',
+                    { taskId, tagName }
+                );
+            } catch (activityError) {
+                console.error('Failed to log activity:', activityError);
+            }
+
             res.status(204).send();
         } catch (error) {
             console.error('Remove tag from task error:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
+    }
+
+    private async logActivity(
+        workspaceId: string,
+        userId: string,
+        entityType: string,
+        entityId: string,
+        action: string,
+        changes?: any
+    ) {
+        await query(
+            `INSERT INTO activity_logs 
+             (workspace_id, user_id, entity_type, entity_id, action, changes)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [workspaceId, userId, entityType, entityId, action, JSON.stringify(changes || {})]
+        );
     }
 }

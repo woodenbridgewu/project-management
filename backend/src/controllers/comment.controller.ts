@@ -170,7 +170,7 @@ export class CommentController {
                     'comment',
                     comment.id,
                     'created',
-                    { taskId, content: content.substring(0, 100) }
+                    { taskId, commentContent: content.substring(0, 100) }
                 );
             } catch (activityError) {
                 console.error('Failed to log activity:', activityError);
@@ -278,7 +278,7 @@ export class CommentController {
                     'comment',
                     id,
                     'updated',
-                    { taskId: comment.task_id, content: content.substring(0, 100) }
+                    { taskId: comment.task_id, commentContent: content.substring(0, 100) }
                 );
             } catch (activityError) {
                 console.error('Failed to log activity:', activityError);
@@ -320,6 +320,9 @@ export class CommentController {
                 return res.status(403).json({ error: 'Only the comment author can delete' });
             }
 
+            // 取得評論內容（在刪除前）
+            const commentContent = comment.content;
+
             // 刪除評論
             await query('DELETE FROM comments WHERE id = $1', [id]);
 
@@ -331,7 +334,7 @@ export class CommentController {
                     'comment',
                     id,
                     'deleted',
-                    { taskId: comment.task_id }
+                    { taskId: comment.task_id, commentContent: commentContent ? commentContent.substring(0, 100) : '' }
                 );
             } catch (activityError) {
                 console.error('Failed to log activity:', activityError);
