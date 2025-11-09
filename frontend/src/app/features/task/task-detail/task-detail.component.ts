@@ -48,7 +48,7 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
     editingCommentId = signal<string | null>(null);
     newCommentContent = '';
     editCommentContent = '';
-    private commentSubscription?: Subscription;
+    private subscriptions: Subscription[] = [];
 
     // 標籤相關
     availableTags = signal<Tag[]>([]);
@@ -126,12 +126,13 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
             this.loadAttachments();
             // 載入活動紀錄總數（只載入第一頁的第一筆，以獲取總數）
             this.loadActivitiesCount();
-            this.subscribeToCommentUpdates();
+            this.subscribeToAllUpdates();
         });
     }
 
     ngOnDestroy(): void {
-        this.commentSubscription?.unsubscribe();
+        this.subscriptions.forEach(sub => sub.unsubscribe());
+        this.subscriptions = [];
     }
 
     loadTask(): void {
@@ -534,17 +535,139 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
         return `${year}-${month}-${day}T${hours}:${minutes}`;
     }
 
-    subscribeToCommentUpdates(): void {
-        this.commentSubscription = this.wsService.onCommentAdded().subscribe((comment: Comment) => {
-            // 只添加屬於當前任務的評論
-            if (comment.task_id === this.taskId) {
-                const currentComments = this.comments();
-                // 檢查評論是否已存在（避免重複）
-                if (!currentComments.find(c => c.id === comment.id)) {
-                    this.comments.set([...currentComments, comment]);
+    subscribeToAllUpdates(): void {
+        // 確保 WebSocket 已連接
+        this.wsService.connect();
+        
+        // 如果任務已經載入，立即加入專案房間
+        const currentTask = this.task();
+        if (currentTask && currentTask.project_id) {
+            this.wsService.joinProject(currentTask.project_id);
+        }
+
+        // 監聽任務更新
+        const taskUpdatedSub = this.wsService.onTaskUpdated().subscribe((updatedTask: Task) => {
+            if (updatedTask.id === this.taskId) {
+                this.task.set(updatedTask);
+                // 重新載入活動紀錄
+                this.loadActivitiesFirstPage();
+            }
+        });
+        this.subscriptions.push(taskUpdatedSub);
+
+        // 監聽任務刪除
+        const taskDeletedSub = this.wsService.onTaskDeleted().subscribe((data: { id: string; projectId: string }) => {
+            if (data.id === this.taskId) {
+                // 任務被刪除，導航回專案頁面
+                const currentTask = this.task();
+                if (currentTask?.project_id) {
+                    this.router.navigate(['/projects', currentTask.project_id]);
                 }
             }
         });
+        this.subscriptions.push(taskDeletedSub);
+
+        // 監聽評論新增
+        const commentAddedSub = this.wsService.onCommentAdded().subscribe((comment: Comment) => {
+            if (comment.task_id === this.taskId) {
+                const currentComments = this.comments();
+                if (!currentComments.find(c => c.id === comment.id)) {
+                    this.comments.set([...currentComments, comment]);
+                    // 重新載入活動紀錄
+                    this.loadActivitiesFirstPage();
+                }
+            }
+        });
+        this.subscriptions.push(commentAddedSub);
+
+        // 監聽評論更新
+        const commentUpdatedSub = this.wsService.onCommentUpdated().subscribe((comment: Comment) => {
+            if (comment.task_id === this.taskId) {
+                const currentComments = this.comments();
+                const index = currentComments.findIndex(c => c.id === comment.id);
+                if (index !== -1) {
+                    const updatedComments = [...currentComments];
+                    updatedComments[index] = comment;
+                    this.comments.set(updatedComments);
+                    // 重新載入活動紀錄
+                    this.loadActivitiesFirstPage();
+                }
+            }
+        });
+        this.subscriptions.push(commentUpdatedSub);
+
+        // 監聽評論刪除
+        const commentDeletedSub = this.wsService.onCommentDeleted().subscribe((data: { id: string; taskId: string }) => {
+            if (data.taskId === this.taskId) {
+                const currentComments = this.comments();
+                this.comments.set(currentComments.filter(c => c.id !== data.id));
+                // 重新載入活動紀錄
+                this.loadActivitiesFirstPage();
+            }
+        });
+        this.subscriptions.push(commentDeletedSub);
+
+        // 監聽附件新增
+        const attachmentAddedSub = this.wsService.onAttachmentAdded().subscribe((attachment: Attachment) => {
+            if (attachment.task_id === this.taskId) {
+                const currentAttachments = this.attachments();
+                // 檢查附件是否已存在（避免重複添加）
+                if (!currentAttachments.find(a => a.id === attachment.id)) {
+                    // 將新附件添加到列表開頭（最新的在前）
+                    this.attachments.set([attachment, ...currentAttachments]);
+                    // 重新載入活動紀錄
+                    this.loadActivitiesFirstPage();
+                }
+            }
+        });
+        this.subscriptions.push(attachmentAddedSub);
+
+        // 監聽附件刪除
+        const attachmentDeletedSub = this.wsService.onAttachmentDeleted().subscribe((data: { id: string; taskId: string }) => {
+            if (data.taskId === this.taskId) {
+                const currentAttachments = this.attachments();
+                this.attachments.set(currentAttachments.filter(a => a.id !== data.id));
+                // 重新載入活動紀錄
+                this.loadActivitiesFirstPage();
+            }
+        });
+        this.subscriptions.push(attachmentDeletedSub);
+
+        // 監聽標籤添加到任務
+        const tagAddedSub = this.wsService.onTagAddedToTask().subscribe((data: { taskId: string; tag: Tag }) => {
+            if (data.taskId === this.taskId) {
+                const currentTask = this.task();
+                if (currentTask) {
+                    const currentTags = currentTask.tags || [];
+                    if (!currentTags.find(t => t.id === data.tag.id)) {
+                        this.task.set({
+                            ...currentTask,
+                            tags: [...currentTags, data.tag]
+                        });
+                        // 重新載入活動紀錄
+                        this.loadActivitiesFirstPage();
+                    }
+                }
+            }
+        });
+        this.subscriptions.push(tagAddedSub);
+
+        // 監聽標籤從任務移除
+        const tagRemovedSub = this.wsService.onTagRemovedFromTask().subscribe((data: { taskId: string; tagId: string }) => {
+            if (data.taskId === this.taskId) {
+                const currentTask = this.task();
+                if (currentTask) {
+                    const currentTags = currentTask.tags || [];
+                    this.task.set({
+                        ...currentTask,
+                        tags: currentTags.filter(t => t.id !== data.tagId)
+                    });
+                    // 重新載入活動紀錄
+                    this.loadActivitiesFirstPage();
+                }
+            }
+        });
+        this.subscriptions.push(tagRemovedSub);
     }
 
     addComment(): void {
@@ -872,11 +995,11 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
         this.uploadingAttachment.set(true);
         this.attachmentService.uploadAttachment(this.taskId, this.selectedFile).subscribe({
             next: (response) => {
-                // 將新附件加入列表
-                this.attachments.set([response.attachment, ...this.attachments()]);
+                // 不手動添加附件，完全依賴 WebSocket 事件來處理，避免重複顯示
+                // WebSocket 監聽器有重複檢查邏輯，不會導致重複添加
                 this.selectedFile = null;
                 this.uploadingAttachment.set(false);
-                // 重新載入任務以更新附件數量
+                // 重新載入任務以更新附件數量（不重新載入附件列表，避免與 WebSocket 衝突）
                 this.loadTask();
                 // 重新載入活動紀錄（回到第一頁）
                 this.loadActivitiesFirstPage();
@@ -895,8 +1018,8 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
 
         this.attachmentService.deleteAttachment(attachmentId).subscribe({
             next: () => {
-                // 從列表中移除附件
-                this.attachments.set(this.attachments().filter(a => a.id !== attachmentId));
+                // 不手動移除附件，讓 WebSocket 事件來處理，避免重複操作
+                // WebSocket 會自動從列表中移除附件
                 // 重新載入任務以更新附件數量
                 this.loadTask();
                 // 重新載入活動紀錄（回到第一頁）
