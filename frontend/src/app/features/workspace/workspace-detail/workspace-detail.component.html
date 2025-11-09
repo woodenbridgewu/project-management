@@ -1,15 +1,20 @@
 <div class="workspace-detail-container">
   <header class="workspace-header">
-    <div class="header-content">
-      <button class="btn-back" (click)="goBack()">← 返回</button>
-      <div class="header-title">
-        <h1>{{ workspace()?.name || '載入中...' }}</h1>
-        <p *ngIf="workspace()?.description" class="workspace-description">{{ workspace()?.description }}</p>
+      <div class="header-content">
+        <button class="btn-back" (click)="goBack()">← 返回</button>
+        <div class="header-title">
+          <h1>{{ workspace()?.name || '載入中...' }}</h1>
+          <p *ngIf="workspace()?.description" class="workspace-description">{{ workspace()?.description }}</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn-secondary" (click)="openMembersModal()" *ngIf="canManageMembers()">
+            👥 管理成員
+          </button>
+          <button class="btn-primary" (click)="showCreateProjectModal = true">
+            <span>+</span> 建立專案
+          </button>
+        </div>
       </div>
-      <button class="btn-primary" (click)="showCreateProjectModal = true">
-        <span>+</span> 建立專案
-      </button>
-    </div>
   </header>
 
   <main class="workspace-main" *ngIf="workspace()">
@@ -23,7 +28,7 @@
           <span class="info-label">專案數量</span>
           <span class="info-value">{{ workspace()?.project_count || 0 }}</span>
         </div>
-        <div class="info-item">
+        <div class="info-item info-item-with-action">
           <span class="info-label">成員數量</span>
           <span class="info-value">{{ workspace()?.member_count || 0 }}</span>
         </div>
@@ -136,6 +141,115 @@
           <button type="button" class="btn-secondary" (click)="closeProjectModal()">取消</button>
           <button type="submit" class="btn-primary" [disabled]="loading() || !projectForm.name">
             {{ loading() ? '處理中...' : (editingProject ? '更新' : '建立') }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 成員管理模態框 -->
+  <div class="modal-overlay" *ngIf="showMembersModal" (click)="closeMembersModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()" style="max-width: 600px;">
+      <div class="modal-header">
+        <h2>工作區成員</h2>
+        <button class="btn-close" (click)="closeMembersModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="members-actions" style="margin-bottom: 16px;">
+          <button class="btn-primary" (click)="openInviteModal()" *ngIf="canManageMembers()">
+            + 邀請成員
+          </button>
+        </div>
+        <div class="members-list" *ngIf="!loadingMembers(); else loadingMembersTemplate">
+          <div class="member-item" *ngFor="let member of members()">
+            <div class="member-info">
+              <div class="member-avatar" *ngIf="member.avatar_url">
+                <img [src]="member.avatar_url" [alt]="member.full_name" />
+              </div>
+              <div class="member-avatar" *ngIf="!member.avatar_url">
+                {{ member.full_name.charAt(0).toUpperCase() }}
+              </div>
+              <div class="member-details">
+                <div class="member-name">{{ member.full_name }}</div>
+                <div class="member-email">{{ member.email }}</div>
+              </div>
+            </div>
+            <div class="member-actions">
+              <span class="member-role" [class.owner]="member.is_owner">
+                {{ getRoleText(member.is_owner ? 'owner' : member.role) }}
+              </span>
+              <div class="member-controls" *ngIf="canManageMembers() && !member.is_owner">
+                <select 
+                  [value]="member.role" 
+                  (change)="updateMemberRole(member, $any($event.target).value)"
+                  class="role-select"
+                  *ngIf="isOwner"
+                >
+                  <option value="admin">管理員</option>
+                  <option value="member">成員</option>
+                  <option value="guest">訪客</option>
+                </select>
+                <button class="btn-icon-danger" (click)="removeMember(member)" title="移除成員">
+                  🗑️
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="empty-state" *ngIf="members().length === 0">
+            <p>還沒有成員</p>
+            <button class="btn-primary" (click)="openInviteModal()" *ngIf="canManageMembers()">
+              邀請第一個成員
+            </button>
+          </div>
+        </div>
+        <ng-template #loadingMembersTemplate>
+          <div class="loading">載入中...</div>
+        </ng-template>
+      </div>
+    </div>
+  </div>
+
+  <!-- 邀請成員模態框 -->
+  <div class="modal-overlay" *ngIf="showInviteModal" (click)="closeInviteModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>邀請成員</h2>
+        <button class="btn-close" (click)="closeInviteModal()">×</button>
+      </div>
+      <form (ngSubmit)="inviteMember()" class="modal-form">
+        <div class="form-group">
+          <label for="invite-email">Email *</label>
+          <input 
+            type="email" 
+            id="invite-email" 
+            [(ngModel)]="inviteForm.email" 
+            name="invite-email"
+            required
+            placeholder="輸入要邀請的使用者 Email"
+          />
+          <small class="form-hint">請輸入已註冊的使用者 Email</small>
+        </div>
+        <div class="form-group" *ngIf="isOwner">
+          <label for="invite-role">角色</label>
+          <select 
+            id="invite-role" 
+            [(ngModel)]="inviteForm.role" 
+            name="invite-role"
+          >
+            <option value="admin">管理員</option>
+            <option value="member">成員</option>
+            <option value="guest">訪客</option>
+          </select>
+          <small class="form-hint">
+            管理員：可以管理專案和成員<br>
+            成員：可以建立和編輯專案<br>
+            訪客：只能查看專案
+          </small>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" (click)="closeInviteModal()">取消</button>
+          <button type="submit" class="btn-primary" [disabled]="loading() || !inviteForm.email.trim()">
+            {{ loading() ? '處理中...' : '邀請' }}
           </button>
         </div>
       </form>
