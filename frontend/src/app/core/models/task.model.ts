@@ -24,11 +24,12 @@ export interface Workspace {
 export interface WorkspaceMember {
     id: string;
     user_id: string;
-    user_name: string;
-    user_email: string;
-    user_avatar?: string;
+    email: string;
+    full_name: string;
+    avatar_url?: string;
     role: 'owner' | 'admin' | 'member' | 'guest';
     joined_at: string | Date;
+    is_owner?: boolean;
 }
 
 export interface Project {
