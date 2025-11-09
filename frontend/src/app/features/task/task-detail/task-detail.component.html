@@ -528,6 +528,71 @@
         </div>
       }
 
+      <!-- 附件區塊 -->
+      @if (!isEditing) {
+        <div class="attachments-section">
+          <h3 class="section-title">附件</h3>
+          
+          <!-- 上傳附件表單 -->
+          <div class="attachment-upload">
+            <label class="file-upload-label">
+              <input
+                type="file"
+                class="file-input"
+                (change)="onFileSelected($event)"
+                [disabled]="uploadingAttachment()"
+                accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv"
+              />
+              <span class="file-upload-button">
+                {{ uploadingAttachment() ? '上傳中...' : '📎 選擇檔案' }}
+              </span>
+            </label>
+            @if (selectedFile && !uploadingAttachment()) {
+              <span class="selected-file-name">{{ selectedFile.name }}</span>
+            }
+          </div>
+
+          <!-- 附件列表 -->
+          @if (loadingAttachments()) {
+            <div class="loading-attachments">載入附件中...</div>
+          } @else {
+            <div class="attachments-list">
+              @for (attachment of attachments(); track attachment.id) {
+                <div class="attachment-item">
+                  <div class="attachment-icon">{{ getFileIcon(attachment.file_type) }}</div>
+                  <div class="attachment-info">
+                    <div class="attachment-name" (click)="downloadAttachment(attachment)">
+                      {{ attachment.file_name }}
+                    </div>
+                    <div class="attachment-meta">
+                      <span class="attachment-size">{{ formatFileSize(attachment.file_size) }}</span>
+                      <span class="attachment-separator">•</span>
+                      <span class="attachment-uploader">{{ attachment.user?.fullName || '未知使用者' }}</span>
+                      <span class="attachment-separator">•</span>
+                      <span class="attachment-time">{{ formatCommentTime(attachment.uploaded_at) }}</span>
+                    </div>
+                  </div>
+                  <div class="attachment-actions">
+                    <button class="btn-link" (click)="downloadAttachment(attachment)" title="下載">
+                      ⬇️
+                    </button>
+                    @if (canDeleteAttachment(attachment)) {
+                      <button class="btn-link btn-danger-link" (click)="deleteAttachment(attachment.id)" title="刪除">
+                        🗑️
+                      </button>
+                    }
+                  </div>
+                </div>
+              } @empty {
+                <div class="empty-attachments">
+                  <p>尚無附件，上傳第一個檔案吧！</p>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+
       <!-- 評論區塊 -->
       @if (!isEditing) {
         <div class="comments-section">

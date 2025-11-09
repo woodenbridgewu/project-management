@@ -12,7 +12,9 @@ import { sectionRouter } from './routes/section.routes';
 import { taskRouter } from './routes/task.routes';
 import { commentRouter } from './routes/comment.routes';
 import { tagRouter } from './routes/tag.routes';
+import { attachmentRouter } from './routes/attachment.routes';
 import { initializeWebSocket } from './websocket/index';
+import path from 'path';
 
 const app = express();
 const httpServer = createServer(app);
@@ -27,7 +29,13 @@ app.set('io', io);
 app.use(helmet());
 app.use(cors({ origin: config.frontendUrl, credentials: true }));
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// 注意：不要對 multipart/form-data 設置編碼，因為 Multer 需要處理二進制數據
+// 檔名編碼問題已在 attachment.controller.ts 中處理
+
+// 靜態檔案服務（提供上傳的檔案）
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // 路由
 app.use('/api/auth', authRouter);
@@ -37,6 +45,7 @@ app.use('/api/sections', sectionRouter);
 app.use('/api/tasks', taskRouter);
 app.use('/api/comments', commentRouter);
 app.use('/api/tags', tagRouter);
+app.use('/api/attachments', attachmentRouter);
 
 // 錯誤處理
 app.use(errorHandler);

@@ -107,3 +107,15 @@ export interface Comment {
     created_at: string | Date;
     updated_at: string | Date;
 }
+
+export interface Attachment {
+    id: string;
+    task_id: string;
+    file_name: string;
+    file_size: number;
+    file_type: string;
+    file_url: string;
+    uploaded_by: string;
+    uploaded_at: string | Date;
+    user?: User;
+}

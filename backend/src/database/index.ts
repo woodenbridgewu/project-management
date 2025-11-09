@@ -1,7 +1,11 @@
 import { Pool } from 'pg';
 import { config } from '../config/index';
 
-export const pool = new Pool(config.database);
+// 確保資料庫連接使用 UTF-8 編碼
+export const pool = new Pool({
+    ...config.database,
+    client_encoding: 'UTF8'
+});
 
 pool.on('error', (err: Error) => {
     console.error('Unexpected database error', err);

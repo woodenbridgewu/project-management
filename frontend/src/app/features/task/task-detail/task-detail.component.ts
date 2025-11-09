@@ -7,10 +7,11 @@ import { TaskService } from '../../../core/services/task.service';
 import { ProjectService } from '../../../core/services/project.service';
 import { CommentService } from '../../../core/services/comment.service';
 import { TagService } from '../../../core/services/tag.service';
+import { AttachmentService } from '../../../core/services/attachment.service';
 import { WorkspaceService } from '../../../core/services/workspace.service';
 import { WebSocketService } from '../../../core/services/websocket.service';
 import { AuthService } from '../../../core/services/auth.service';
-import { Task, Project, Comment, User, Tag } from '../../../core/models/task.model';
+import { Task, Project, Comment, User, Tag, Attachment } from '../../../core/models/task.model';
 
 @Component({
     selector: 'app-task-detail',
@@ -26,6 +27,7 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
     private projectService = inject(ProjectService);
     private commentService = inject(CommentService);
     private tagService = inject(TagService);
+    private attachmentService = inject(AttachmentService);
     private workspaceService = inject(WorkspaceService);
     private wsService = inject(WebSocketService);
     private authService = inject(AuthService);
@@ -75,6 +77,12 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
         '#9F7AEA'  // 淺紫色
     ];
 
+    // 附件相關
+    attachments = signal<Attachment[]>([]);
+    loadingAttachments = signal(false);
+    uploadingAttachment = signal(false);
+    selectedFile: File | null = null;
+
     // 子任務相關
     subtasks = signal<Task[]>([]);
     loadingSubtasks = signal(false);
@@ -104,6 +112,7 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
             this.loadTask();
             this.loadComments();
             this.loadSubtasks();
+            this.loadAttachments();
             this.subscribeToCommentUpdates();
         });
     }
@@ -799,6 +808,87 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
 
     getInitials(name: string): string {
         return name.split(' ').map(n => n[0]).join('').toUpperCase();
+    }
+
+    // 附件相關方法
+    loadAttachments(): void {
+        this.loadingAttachments.set(true);
+        this.attachmentService.getAttachmentsByTask(this.taskId).subscribe({
+            next: (response) => {
+                this.attachments.set(response.attachments);
+                this.loadingAttachments.set(false);
+            },
+            error: (error) => {
+                console.error('載入附件失敗:', error);
+                this.loadingAttachments.set(false);
+            }
+        });
+    }
+
+    onFileSelected(event: Event): void {
+        const input = event.target as HTMLInputElement;
+        if (input.files && input.files.length > 0) {
+            this.selectedFile = input.files[0];
+            this.uploadAttachment();
+        }
+    }
+
+    uploadAttachment(): void {
+        if (!this.selectedFile) return;
+
+        this.uploadingAttachment.set(true);
+        this.attachmentService.uploadAttachment(this.taskId, this.selectedFile).subscribe({
+            next: (response) => {
+                // 將新附件加入列表
+                this.attachments.set([response.attachment, ...this.attachments()]);
+                this.selectedFile = null;
+                this.uploadingAttachment.set(false);
+                // 重新載入任務以更新附件數量
+                this.loadTask();
+            },
+            error: (error) => {
+                console.error('上傳附件失敗:', error);
+                alert('上傳附件失敗：' + (error.error?.error || '未知錯誤'));
+                this.uploadingAttachment.set(false);
+                this.selectedFile = null;
+            }
+        });
+    }
+
+    deleteAttachment(attachmentId: string): void {
+        if (!confirm('確定要刪除此附件嗎？')) return;
+
+        this.attachmentService.deleteAttachment(attachmentId).subscribe({
+            next: () => {
+                // 從列表中移除附件
+                this.attachments.set(this.attachments().filter(a => a.id !== attachmentId));
+                // 重新載入任務以更新附件數量
+                this.loadTask();
+            },
+            error: (error) => {
+                console.error('刪除附件失敗:', error);
+                alert('刪除附件失敗：' + (error.error?.error || '未知錯誤'));
+            }
+        });
+    }
+
+    downloadAttachment(attachment: Attachment): void {
+        const url = this.attachmentService.getAttachmentUrl(attachment.file_url);
+        window.open(url, '_blank');
+    }
+
+    formatFileSize(bytes: number): string {
+        return this.attachmentService.formatFileSize(bytes);
+    }
+
+    getFileIcon(fileType: string): string {
+        return this.attachmentService.getFileIcon(fileType);
+    }
+
+    canDeleteAttachment(attachment: Attachment): boolean {
+        const currentUser = this.authService.currentUser();
+        if (!currentUser) return false;
+        return String(attachment.uploaded_by) === String(currentUser.id);
     }
 }
 
