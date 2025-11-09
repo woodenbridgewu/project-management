@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { Server as SocketIOServer } from 'socket.io';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { query } from '../database/index';
 import { z } from 'zod';
@@ -203,6 +204,17 @@ export class TaskController {
 
             // 轉換時間戳為 ISO 8601 格式
             const formattedTask = this.formatTaskTimestamps(fullTaskResult.rows[0]);
+            
+            // 發送 WebSocket 事件
+            try {
+                const io = req.app.get('io') as SocketIOServer;
+                if (io && projectId) {
+                    io.to(`project:${projectId}`).emit('task:created', formattedTask);
+                }
+            } catch (wsError) {
+                console.error('Failed to emit WebSocket event:', wsError);
+            }
+            
             res.status(201).json({ task: formattedTask });
         } catch (error) {
             if (error instanceof z.ZodError) {
@@ -413,6 +425,17 @@ export class TaskController {
 
             // 轉換時間戳為 ISO 8601 格式
             const formattedTask = this.formatTaskTimestamps(fullTaskResult.rows[0]);
+            
+            // 發送 WebSocket 事件
+            try {
+                const io = req.app.get('io') as SocketIOServer;
+                if (io && oldTask.project_id) {
+                    io.to(`project:${oldTask.project_id}`).emit('task:updated', formattedTask);
+                }
+            } catch (wsError) {
+                console.error('Failed to emit WebSocket event:', wsError);
+            }
+            
             res.json({ task: formattedTask });
         } catch (error) {
             console.error('Update task error:', error);
@@ -480,6 +503,16 @@ export class TaskController {
                 }
             }
 
+            // 發送 WebSocket 事件
+            try {
+                const io = req.app.get('io') as SocketIOServer;
+                if (io && projectId) {
+                    io.to(`project:${projectId}`).emit('task:deleted', { id, projectId });
+                }
+            } catch (wsError) {
+                console.error('Failed to emit WebSocket event:', wsError);
+            }
+
             res.json({ message: 'Task deleted successfully' });
         } catch (error) {
             console.error('Delete task error:', error);
@@ -506,6 +539,7 @@ export class TaskController {
             }
 
             const workspaceId = taskResult.rows[0].workspace_id;
+            const projectId = taskResult.rows[0].project_id;
             const oldSectionId = taskResult.rows[0].old_section_id;
 
             await query(
@@ -531,6 +565,22 @@ export class TaskController {
                 );
             } catch (activityError) {
                 console.error('Failed to log activity:', activityError);
+            }
+
+            // 發送 WebSocket 事件
+            try {
+                const io = req.app.get('io') as SocketIOServer;
+                if (io && projectId) {
+                    io.to(`project:${projectId}`).emit('task:moved', { 
+                        id, 
+                        projectId,
+                        oldSectionId,
+                        newSectionId: sectionId,
+                        position
+                    });
+                }
+            } catch (wsError) {
+                console.error('Failed to emit WebSocket event:', wsError);
             }
 
             res.json({ message: 'Task moved successfully' });
@@ -810,6 +860,16 @@ export class TaskController {
                 );
             } catch (activityError) {
                 console.error('Failed to log activity:', activityError);
+            }
+
+            // 發送 WebSocket 事件
+            try {
+                const io = req.app.get('io') as SocketIOServer;
+                if (io && projectId) {
+                    io.to(`project:${projectId}`).emit('task:created', fullSubtask);
+                }
+            } catch (wsError) {
+                console.error('Failed to emit WebSocket event:', wsError);
             }
 
             res.status(201).json({ subtask: fullSubtask });

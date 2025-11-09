@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { Server as SocketIOServer } from 'socket.io';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { query } from '../database/index';
 import { z } from 'zod';
@@ -236,9 +237,9 @@ export class TagController {
                 return res.status(400).json({ error: 'tagId is required' });
             }
 
-            // 檢查任務是否存在並取得工作區 ID
+            // 檢查任務是否存在並取得工作區 ID 和專案 ID
             const taskResult = await query(
-                `SELECT t.id, p.workspace_id
+                `SELECT t.id, t.project_id, p.workspace_id
                  FROM tasks t
                  JOIN projects p ON t.project_id = p.id
                  WHERE t.id = $1`,
@@ -250,6 +251,7 @@ export class TagController {
             }
 
             const workspaceId = taskResult.rows[0].workspace_id;
+            const projectId = taskResult.rows[0].project_id;
 
             // 檢查工作區訪問權限
             const hasAccess = await this.checkWorkspaceAccess(workspaceId, req.user!.id);
@@ -304,6 +306,26 @@ export class TagController {
                 console.error('Failed to log activity:', activityError);
             }
 
+            // 發送 WebSocket 事件
+            try {
+                const io = req.app.get('io') as SocketIOServer;
+                if (io && projectId) {
+                    // 取得標籤完整資訊
+                    const tagInfoResult = await query(
+                        'SELECT id, name, color FROM tags WHERE id = $1',
+                        [tagId]
+                    );
+                    const tagInfo = tagInfoResult.rows[0];
+                    
+                    io.to(`project:${projectId}`).emit('tag:added_to_task', {
+                        taskId,
+                        tag: tagInfo
+                    });
+                }
+            } catch (wsError) {
+                console.error('Failed to emit WebSocket event:', wsError);
+            }
+
             res.status(201).json({ message: 'Tag added to task successfully' });
         } catch (error) {
             console.error('Add tag to task error:', error);
@@ -316,9 +338,9 @@ export class TagController {
         try {
             const { taskId, tagId } = req.params;
 
-            // 檢查任務是否存在並取得工作區 ID
+            // 檢查任務是否存在並取得工作區 ID 和專案 ID
             const taskResult = await query(
-                `SELECT t.id, p.workspace_id
+                `SELECT t.id, t.project_id, p.workspace_id
                  FROM tasks t
                  JOIN projects p ON t.project_id = p.id
                  WHERE t.id = $1`,
@@ -330,6 +352,7 @@ export class TagController {
             }
 
             const workspaceId = taskResult.rows[0].workspace_id;
+            const projectId = taskResult.rows[0].project_id;
 
             // 檢查工作區訪問權限
             const hasAccess = await this.checkWorkspaceAccess(workspaceId, req.user!.id);
@@ -366,6 +389,19 @@ export class TagController {
                 );
             } catch (activityError) {
                 console.error('Failed to log activity:', activityError);
+            }
+
+            // 發送 WebSocket 事件
+            try {
+                const io = req.app.get('io') as SocketIOServer;
+                if (io && projectId) {
+                    io.to(`project:${projectId}`).emit('tag:removed_from_task', {
+                        taskId,
+                        tagId
+                    });
+                }
+            } catch (wsError) {
+                console.error('Failed to emit WebSocket event:', wsError);
             }
 
             res.status(204).send();

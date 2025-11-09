@@ -284,6 +284,23 @@ export class CommentController {
                 console.error('Failed to log activity:', activityError);
             }
 
+            // 發送 WebSocket 事件
+            try {
+                const io = req.app.get('io') as SocketIOServer;
+                // 取得專案 ID
+                const projectResult = await query(
+                    `SELECT p.id FROM projects p
+                     JOIN tasks t ON p.id = t.project_id
+                     WHERE t.id = $1`,
+                    [comment.task_id]
+                );
+                if (io && projectResult.rows.length > 0) {
+                    io.to(`project:${projectResult.rows[0].id}`).emit('comment:updated', commentWithUser.rows[0]);
+                }
+            } catch (wsError) {
+                console.error('Failed to emit WebSocket event:', wsError);
+            }
+
             res.json({ comment: commentWithUser.rows[0] });
         } catch (error) {
             if (error instanceof z.ZodError) {
@@ -338,6 +355,23 @@ export class CommentController {
                 );
             } catch (activityError) {
                 console.error('Failed to log activity:', activityError);
+            }
+
+            // 發送 WebSocket 事件
+            try {
+                const io = req.app.get('io') as SocketIOServer;
+                // 取得專案 ID
+                const projectResult = await query(
+                    `SELECT p.id FROM projects p
+                     JOIN tasks t ON p.id = t.project_id
+                     WHERE t.id = $1`,
+                    [comment.task_id]
+                );
+                if (io && projectResult.rows.length > 0) {
+                    io.to(`project:${projectResult.rows[0].id}`).emit('comment:deleted', { id, taskId: comment.task_id });
+                }
+            } catch (wsError) {
+                console.error('Failed to emit WebSocket event:', wsError);
             }
 
             res.status(204).send();

@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { Server as SocketIOServer } from 'socket.io';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { query } from '../database/index';
 import { z } from 'zod';
@@ -152,6 +153,16 @@ export class SectionController {
                 [result.rows[0].id]
             );
 
+            // 發送 WebSocket 事件
+            try {
+                const io = req.app.get('io') as SocketIOServer;
+                if (io && projectId) {
+                    io.to(`project:${projectId}`).emit('section:created', fullSection.rows[0]);
+                }
+            } catch (wsError) {
+                console.error('Failed to emit WebSocket event:', wsError);
+            }
+
             res.status(201).json({ section: fullSection.rows[0] });
         } catch (error) {
             if (error instanceof z.ZodError) {
@@ -254,6 +265,16 @@ export class SectionController {
                 [result.rows[0].id]
             );
 
+            // 發送 WebSocket 事件
+            try {
+                const io = req.app.get('io') as SocketIOServer;
+                if (io && projectId) {
+                    io.to(`project:${projectId}`).emit('section:updated', fullSection.rows[0]);
+                }
+            } catch (wsError) {
+                console.error('Failed to emit WebSocket event:', wsError);
+            }
+
             res.json({ section: fullSection.rows[0] });
         } catch (error) {
             if (error instanceof z.ZodError) {
@@ -299,6 +320,16 @@ export class SectionController {
                  WHERE project_id = $1 AND position > $2`,
                 [projectId, position]
             );
+
+            // 發送 WebSocket 事件
+            try {
+                const io = req.app.get('io') as SocketIOServer;
+                if (io && projectId) {
+                    io.to(`project:${projectId}`).emit('section:deleted', { id, projectId });
+                }
+            } catch (wsError) {
+                console.error('Failed to emit WebSocket event:', wsError);
+            }
 
             res.json({ message: 'Section deleted successfully' });
         } catch (error) {
@@ -387,6 +418,16 @@ export class SectionController {
                 GROUP BY s.id`,
                 [result.rows[0].id]
             );
+
+            // 發送 WebSocket 事件
+            try {
+                const io = req.app.get('io') as SocketIOServer;
+                if (io && projectId) {
+                    io.to(`project:${projectId}`).emit('section:updated', fullSection.rows[0]);
+                }
+            } catch (wsError) {
+                console.error('Failed to emit WebSocket event:', wsError);
+            }
 
             res.json({ section: fullSection.rows[0] });
         } catch (error) {
