@@ -1,11 +1,13 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CdkDragDrop, DragDropModule, moveItemInArray, transferArrayItem } from '@angular/cdk/drag-drop';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { TaskService } from '../../../core/services/task.service';
 import { SectionService } from '../../../core/services/section.service';
 import { ProjectService } from '../../../core/services/project.service';
+import { WebSocketService } from '../../../core/services/websocket.service';
 import { TaskCardComponent } from '../../../shared/components/task-card/task-card.component';
 import { Task, Section } from '../../../core/models/task.model';
 
@@ -16,10 +18,11 @@ import { Task, Section } from '../../../core/models/task.model';
     templateUrl: './project-board.component.html',
     styleUrls: ['./project-board.component.css']
 })
-export class ProjectBoardComponent implements OnInit {
+export class ProjectBoardComponent implements OnInit, OnDestroy {
     private taskService = inject(TaskService);
     private sectionService = inject(SectionService);
     private projectService = inject(ProjectService);
+    private wsService = inject(WebSocketService);
     private route = inject(ActivatedRoute);
     private router = inject(Router);
 
@@ -27,6 +30,7 @@ export class ProjectBoardComponent implements OnInit {
     projectName = signal<string>('');
     loading = signal(false);
     projectId = '';
+    private subscriptions: Subscription[] = [];
 
     showCreateSectionModal = false;
     editingSection: Section | null = null;
@@ -45,7 +49,99 @@ export class ProjectBoardComponent implements OnInit {
             this.projectId = params['id'];
             this.loadProject();
             this.loadSections();
+            this.subscribeToUpdates();
         });
+    }
+
+    ngOnDestroy(): void {
+        this.subscriptions.forEach(sub => sub.unsubscribe());
+        this.subscriptions = [];
+    }
+
+    subscribeToUpdates(): void {
+        // 確保 WebSocket 已連接並加入專案房間
+        this.wsService.connect();
+        this.wsService.joinProject(this.projectId);
+
+        // 監聽任務創建
+        const taskCreatedSub = this.wsService.onTaskCreated().subscribe((task: Task) => {
+            if (task.project_id === this.projectId) {
+                this.loadSections(); // 重新載入以更新任務列表
+            }
+        });
+        this.subscriptions.push(taskCreatedSub);
+
+        // 監聽任務更新
+        const taskUpdatedSub = this.wsService.onTaskUpdated().subscribe((task: Task) => {
+            if (task.project_id === this.projectId) {
+                const sectionsData = this.sections();
+                sectionsData.forEach(section => {
+                    const taskIndex = section.tasks?.findIndex(t => t.id === task.id);
+                    if (taskIndex !== undefined && taskIndex !== -1 && section.tasks) {
+                        section.tasks[taskIndex] = task;
+                    }
+                });
+                this.sections.set([...sectionsData]);
+            }
+        });
+        this.subscriptions.push(taskUpdatedSub);
+
+        // 監聽任務刪除
+        const taskDeletedSub = this.wsService.onTaskDeleted().subscribe((data: { id: string; projectId: string }) => {
+            if (data.projectId === this.projectId) {
+                const sectionsData = this.sections();
+                sectionsData.forEach(section => {
+                    if (section.tasks) {
+                        section.tasks = section.tasks.filter(t => t.id !== data.id);
+                    }
+                });
+                this.sections.set([...sectionsData]);
+            }
+        });
+        this.subscriptions.push(taskDeletedSub);
+
+        // 監聽任務移動
+        const taskMovedSub = this.wsService.onTaskMoved().subscribe((data: { id: string; projectId: string; oldSectionId: string | null; newSectionId: string | null; position: number }) => {
+            if (data.projectId === this.projectId) {
+                // 重新載入以確保任務在正確的位置
+                this.loadSections();
+            }
+        });
+        this.subscriptions.push(taskMovedSub);
+
+        // 監聽區段創建
+        const sectionCreatedSub = this.wsService.onSectionCreated().subscribe((section: Section) => {
+            if (section.project_id === this.projectId) {
+                const sectionsData = this.sections();
+                sectionsData.push({ ...section, tasks: [] });
+                sectionsData.sort((a, b) => a.position - b.position);
+                this.sections.set([...sectionsData]);
+            }
+        });
+        this.subscriptions.push(sectionCreatedSub);
+
+        // 監聽區段更新
+        const sectionUpdatedSub = this.wsService.onSectionUpdated().subscribe((section: Section) => {
+            if (section.project_id === this.projectId) {
+                const sectionsData = this.sections();
+                const index = sectionsData.findIndex(s => s.id === section.id);
+                if (index !== -1) {
+                    sectionsData[index] = { ...sectionsData[index], ...section };
+                    sectionsData.sort((a, b) => a.position - b.position);
+                    this.sections.set([...sectionsData]);
+                }
+            }
+        });
+        this.subscriptions.push(sectionUpdatedSub);
+
+        // 監聽區段刪除
+        const sectionDeletedSub = this.wsService.onSectionDeleted().subscribe((data: { id: string; projectId: string }) => {
+            if (data.projectId === this.projectId) {
+                const sectionsData = this.sections();
+                this.sections.set(sectionsData.filter(s => s.id !== data.id));
+            }
+        });
+        this.subscriptions.push(sectionDeletedSub);
     }
 
     loadProject() {

@@ -1,7 +1,8 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { TaskService } from '../../../core/services/task.service';
 import { WebSocketService } from '../../../core/services/websocket.service';
 import { ProjectService } from '../../../core/services/project.service';
@@ -17,7 +18,7 @@ import { TaskCardComponent } from '../../../shared/components/task-card/task-car
     templateUrl: './task-list.component.html',
     styleUrls: ['./task-list.component.css']
 })
-export class TaskListComponent implements OnInit {
+export class TaskListComponent implements OnInit, OnDestroy {
     private taskService = inject(TaskService);
     private wsService = inject(WebSocketService);
     private projectService = inject(ProjectService);
@@ -31,6 +32,7 @@ export class TaskListComponent implements OnInit {
     loading = signal(false);
     projectId = signal('');
     workspaceId = signal('');
+    private subscriptions: Subscription[] = [];
 
     filters = {
         status: '',
@@ -54,6 +56,11 @@ export class TaskListComponent implements OnInit {
             this.loadTasks();
             this.subscribeToUpdates();
         });
+    }
+
+    ngOnDestroy(): void {
+        this.subscriptions.forEach(sub => sub.unsubscribe());
+        this.subscriptions = [];
     }
 
     loadProject(): void {
@@ -123,21 +130,54 @@ export class TaskListComponent implements OnInit {
     }
 
     subscribeToUpdates(): void {
+        // 確保 WebSocket 已連接並加入專案房間
+        this.wsService.connect();
         this.wsService.joinProject(this.projectId());
 
-        this.wsService.onTaskUpdated().subscribe(updatedTask => {
-            const currentTasks = this.tasks();
-            const index = currentTasks.findIndex(t => t.id === updatedTask.id);
-
-            if (index !== -1) {
-                const newTasks = [...currentTasks];
-                newTasks[index] = updatedTask;
-                this.tasks.set(newTasks);
-            } else {
-                // 新任務，重新載入
+        // 監聽任務創建
+        const taskCreatedSub = this.wsService.onTaskCreated().subscribe((task: Task) => {
+            if (task.project_id === this.projectId()) {
+                // 重新載入任務列表
                 this.loadTasks();
             }
         });
+        this.subscriptions.push(taskCreatedSub);
+
+        // 監聽任務更新
+        const taskUpdatedSub = this.wsService.onTaskUpdated().subscribe((updatedTask: Task) => {
+            if (updatedTask.project_id === this.projectId()) {
+                const currentTasks = this.tasks();
+                const index = currentTasks.findIndex(t => t.id === updatedTask.id);
+
+                if (index !== -1) {
+                    const newTasks = [...currentTasks];
+                    newTasks[index] = updatedTask;
+                    this.tasks.set(newTasks);
+                } else {
+                    // 任務不在列表中，重新載入
+                    this.loadTasks();
+                }
+            }
+        });
+        this.subscriptions.push(taskUpdatedSub);
+
+        // 監聽任務刪除
+        const taskDeletedSub = this.wsService.onTaskDeleted().subscribe((data: { id: string; projectId: string }) => {
+            if (data.projectId === this.projectId()) {
+                const currentTasks = this.tasks();
+                this.tasks.set(currentTasks.filter(t => t.id !== data.id));
+            }
+        });
+        this.subscriptions.push(taskDeletedSub);
+
+        // 監聽任務移動
+        const taskMovedSub = this.wsService.onTaskMoved().subscribe((data: { id: string; projectId: string; oldSectionId: string | null; newSectionId: string | null; position: number }) => {
+            if (data.projectId === this.projectId()) {
+                // 重新載入任務列表以確保順序正確
+                this.loadTasks();
+            }
+        });
+        this.subscriptions.push(taskMovedSub);
     }
 
     openCreateTaskDialog(): void {
