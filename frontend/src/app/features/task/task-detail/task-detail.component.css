@@ -541,11 +541,23 @@
   border-top: 1px solid #e2e8f0;
 }
 
-.attachment-upload {
-  margin-bottom: 24px;
+.attachment-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.attachment-header .section-title {
+  margin-bottom: 0;
+}
+
+.selected-file-info {
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: #f7fafc;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
 }
 
 .file-upload-label {

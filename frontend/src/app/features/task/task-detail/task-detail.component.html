@@ -531,10 +531,8 @@
       <!-- 附件區塊 -->
       @if (!isEditing) {
         <div class="attachments-section">
-          <h3 class="section-title">附件</h3>
-          
-          <!-- 上傳附件表單 -->
-          <div class="attachment-upload">
+          <div class="attachment-header">
+            <h3 class="section-title">附件</h3>
             <label class="file-upload-label">
               <input
                 type="file"
@@ -544,13 +542,16 @@
                 accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv"
               />
               <span class="file-upload-button">
-                {{ uploadingAttachment() ? '上傳中...' : '📎 選擇檔案' }}
+                {{ uploadingAttachment() ? '上傳中...' : '📎 上傳檔案' }}
               </span>
             </label>
-            @if (selectedFile && !uploadingAttachment()) {
-              <span class="selected-file-name">{{ selectedFile.name }}</span>
-            }
           </div>
+          
+          @if (selectedFile && !uploadingAttachment()) {
+            <div class="selected-file-info">
+              <span class="selected-file-name">{{ selectedFile.name }}</span>
+            </div>
+          }
 
           <!-- 附件列表 -->
           @if (loadingAttachments()) {
