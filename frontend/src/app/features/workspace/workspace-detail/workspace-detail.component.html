@@ -1,23 +1,19 @@
 <div class="workspace-detail-container">
-  <header class="workspace-header">
-      <div class="header-content">
-        <button class="btn-back" (click)="goBack()">← 返回</button>
-        <div class="header-title">
-          <h1>{{ workspace()?.name || '載入中...' }}</h1>
-          <p *ngIf="workspace()?.description" class="workspace-description">{{ workspace()?.description }}</p>
-        </div>
-        <div class="header-actions">
-          <button class="btn-secondary" (click)="openMembersModal()" *ngIf="canManageMembers()">
-            👥 管理成員
-          </button>
-          <button class="btn-primary" (click)="showCreateProjectModal = true">
-            <span>+</span> 建立專案
-          </button>
-        </div>
-      </div>
-  </header>
-
   <main class="workspace-main" *ngIf="workspace()">
+    <div class="workspace-header-info">
+      <div class="workspace-title-section">
+        <h1 class="workspace-title">{{ workspace()?.name || '載入中...' }}</h1>
+        <p *ngIf="workspace()?.description" class="workspace-description">{{ workspace()?.description }}</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn-secondary" (click)="openMembersModal()" *ngIf="canManageMembers()">
+          👥 管理成員
+        </button>
+        <button class="btn-primary" (click)="showCreateProjectModal = true">
+          <span>+</span> 建立專案
+        </button>
+      </div>
+    </div>
     <div class="workspace-info">
       <div class="info-card">
         <div class="info-item">
