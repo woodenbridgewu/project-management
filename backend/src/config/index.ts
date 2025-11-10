@@ -23,5 +23,14 @@ export const config = {
     redis: {
         host: process.env.REDIS_HOST || 'localhost',
         port: parseInt(process.env.REDIS_PORT || '6379')
+    },
+
+    smtp: {
+        host: process.env.SMTP_HOST || '',
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+        user: process.env.SMTP_USER || '',
+        password: process.env.SMTP_PASSWORD || '',
+        from: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@project-management.com'
     }
 };
