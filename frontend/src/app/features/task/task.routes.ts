@@ -4,6 +4,11 @@ import { TaskListComponent } from './task-list/task-list.component';
 
 export const taskRoutes: Routes = [
     {
+        path: '',
+        redirectTo: '/dashboard',
+        pathMatch: 'full'
+    },
+    {
         path: ':id',
         component: TaskDetailComponent
     },
