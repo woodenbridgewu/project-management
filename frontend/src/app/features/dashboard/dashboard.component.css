@@ -25,6 +25,12 @@
   color: #1a202c;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .user-info {
   display: flex;
   align-items: center;

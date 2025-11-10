@@ -5,11 +5,12 @@ import { AuthService } from '../../core/services/auth.service';
 import { WorkspaceService } from '../../core/services/workspace.service';
 import { ProjectService } from '../../core/services/project.service';
 import { Workspace, Project } from '../../core/models/task.model';
+import { NotificationCenterComponent } from '../shared/notification-center/notification-center.component';
 
 @Component({
     selector: 'app-dashboard',
     standalone: true,
-    imports: [CommonModule, RouterLink],
+    imports: [CommonModule, RouterLink, NotificationCenterComponent],
     templateUrl: './dashboard.component.html',
     styleUrls: ['./dashboard.component.css']
 })
