@@ -3,6 +3,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { query } from '../database/index';
 import { z } from 'zod';
+import { NotificationController } from './notification.controller';
 
 const createCommentSchema = z.object({
     content: z.string().min(1).max(5000)
@@ -98,9 +99,9 @@ export class CommentController {
                 return res.status(403).json({ error: 'Access denied' });
             }
 
-            // 檢查任務是否存在並取得 project_id
+            // 檢查任務是否存在並取得 project_id、creator_id、assignee_id
             const taskResult = await query(
-                `SELECT t.id, t.project_id, p.workspace_id 
+                `SELECT t.id, t.title, t.project_id, t.creator_id, t.assignee_id, p.workspace_id 
                  FROM tasks t
                  JOIN projects p ON t.project_id = p.id
                  WHERE t.id = $1`,
@@ -113,6 +114,9 @@ export class CommentController {
 
             const workspaceId = taskResult.rows[0].workspace_id;
             const projectId = taskResult.rows[0].project_id;
+            const taskTitle = taskResult.rows[0].title;
+            const taskCreatorId = taskResult.rows[0].creator_id;
+            const taskAssigneeId = taskResult.rows[0].assignee_id;
 
             // 建立評論
             const result = await query(
@@ -174,6 +178,42 @@ export class CommentController {
                 );
             } catch (activityError) {
                 console.error('Failed to log activity:', activityError);
+            }
+
+            // 發送通知給任務創建者和指派者（如果他們不是評論者）
+            try {
+                const io = req.app.get('io') as SocketIOServer;
+                const commenterId = req.user!.id;
+                const commenterName = commentWithUser.rows[0].user.fullName;
+                const commentPreview = content.length > 50 ? content.substring(0, 50) + '...' : content;
+
+                // 通知任務創建者
+                if (taskCreatorId && taskCreatorId !== commenterId) {
+                    await NotificationController.createNotification(
+                        taskCreatorId,
+                        'comment_added',
+                        `${commenterName} 在任務「${taskTitle.substring(0, 30)}」中新增了評論`,
+                        commentPreview,
+                        'task',
+                        taskId,
+                        io
+                    );
+                }
+
+                // 通知任務指派者（如果與創建者不同）
+                if (taskAssigneeId && taskAssigneeId !== commenterId && taskAssigneeId !== taskCreatorId) {
+                    await NotificationController.createNotification(
+                        taskAssigneeId,
+                        'comment_added',
+                        `${commenterName} 在任務「${taskTitle.substring(0, 30)}」中新增了評論`,
+                        commentPreview,
+                        'task',
+                        taskId,
+                        io
+                    );
+                }
+            } catch (notifError) {
+                console.error('Failed to create comment notification:', notifError);
             }
 
             // 發送 WebSocket 事件
