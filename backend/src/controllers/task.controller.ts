@@ -3,6 +3,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { query } from '../database/index';
 import { z } from 'zod';
+import { NotificationController } from './notification.controller';
 
 const createTaskSchema = z.object({
     title: z.string().min(1).max(500),
@@ -205,6 +206,24 @@ export class TaskController {
             // 轉換時間戳為 ISO 8601 格式
             const formattedTask = this.formatTaskTimestamps(fullTaskResult.rows[0]);
             
+            // 如果任務指派給了其他用戶，發送通知
+            if (taskData.assigneeId && taskData.assigneeId !== req.user!.id) {
+                try {
+                    const io = req.app.get('io') as SocketIOServer;
+                    await NotificationController.createNotification(
+                        taskData.assigneeId,
+                        'task_assigned',
+                        `您被指派了任務「${taskData.title.substring(0, 50)}」`,
+                        `任務「${taskData.title}」已指派給您`,
+                        'task',
+                        task.id,
+                        io
+                    );
+                } catch (notifError) {
+                    console.error('Failed to create assignment notification:', notifError);
+                }
+            }
+            
             // 發送 WebSocket 事件
             try {
                 const io = req.app.get('io') as SocketIOServer;
@@ -381,6 +400,25 @@ export class TaskController {
                         const oldAssigneeId = oldTask.assignee_id || null;
                         if (String(newAssigneeId) !== String(oldAssigneeId)) {
                             activityChanges.newAssigneeId = updates.assigneeId;
+                            
+                            // 如果指派了新用戶，發送通知
+                            if (newAssigneeId && newAssigneeId !== req.user!.id) {
+                                try {
+                                    const taskTitle = fullTaskResult.rows[0].title || '任務';
+                                    const io = req.app.get('io') as SocketIOServer;
+                                    await NotificationController.createNotification(
+                                        newAssigneeId,
+                                        'task_assigned',
+                                        `您被指派了任務「${taskTitle.substring(0, 50)}」`,
+                                        `任務「${taskTitle}」已指派給您`,
+                                        'task',
+                                        id,
+                                        io
+                                    );
+                                } catch (notifError) {
+                                    console.error('Failed to create assignment notification:', notifError);
+                                }
+                            }
                         }
                     }
                     
