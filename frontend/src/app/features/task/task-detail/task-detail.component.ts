@@ -12,6 +12,7 @@ import { ActivityService } from '../../../core/services/activity.service';
 import { WorkspaceService } from '../../../core/services/workspace.service';
 import { WebSocketService } from '../../../core/services/websocket.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { NavigationService } from '../../../core/services/navigation.service';
 import { Task, Project, Comment, User, Tag, Attachment, Activity, WorkspaceMember } from '../../../core/models/task.model';
 
 @Component({
@@ -33,6 +34,7 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
     private workspaceService = inject(WorkspaceService);
     private wsService = inject(WebSocketService);
     private authService = inject(AuthService);
+    private navigationService = inject(NavigationService);
 
     task = signal<Task | null>(null);
     project = signal<Project | null>(null);
@@ -121,6 +123,8 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
     loadingMembers = signal(false);
 
     ngOnInit(): void {
+        // 註冊返回處理器（如果專案還沒載入，會在 loadProject 中再次註冊以確保使用最新的專案信息）
+        this.registerBackHandler();
         this.route.params.subscribe(params => {
             this.taskId = params['id'];
             this.loadTask();
@@ -136,6 +140,8 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
     ngOnDestroy(): void {
         this.subscriptions.forEach(sub => sub.unsubscribe());
         this.subscriptions = [];
+        // 清除返回處理器
+        this.navigationService.clearBackHandler();
     }
 
     loadTask(): void {
@@ -166,9 +172,14 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
                 // 確保 WebSocket 已連接，然後加入專案的 WebSocket 房間以接收即時更新
                 this.wsService.connect();
                 this.wsService.joinProject(projectId);
+                // 載入專案後，重新註冊返回處理器
+                // 這樣可以確保專案信息已經載入，返回時能正確導航到專案看板
+                this.registerBackHandler();
             },
             error: (error) => {
                 console.error('載入專案失敗:', error);
+                // 即使載入專案失敗，也註冊返回處理器（會返回到工作區列表）
+                this.registerBackHandler();
             }
         });
     }
@@ -920,6 +931,16 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
         } else {
             this.router.navigate(['/workspaces']);
         }
+    }
+
+    /**
+     * 註冊返回處理器到導航服務
+     * 這樣 Header 組件就可以使用任務詳情組件的返回邏輯
+     */
+    private registerBackHandler(): void {
+        this.navigationService.registerBackHandler(() => {
+            this.goBack();
+        });
     }
 
     getStatusLabel(status: string): string {
