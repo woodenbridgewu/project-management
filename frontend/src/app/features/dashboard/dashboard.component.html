@@ -1,17 +1,4 @@
 <div class="dashboard-container">
-  <header class="dashboard-header">
-    <div class="header-content">
-      <h1>專案管理系統</h1>
-      <div class="header-right">
-        <app-notification-center></app-notification-center>
-        <div class="user-info">
-          <span>歡迎，{{ currentUser()?.fullName || '使用者' }}</span>
-          <button (click)="logout()" class="btn-logout">登出</button>
-        </div>
-      </div>
-    </div>
-  </header>
-
   <main class="dashboard-main">
     <div class="welcome-card">
       <h2>歡迎使用專案管理系統</h2>

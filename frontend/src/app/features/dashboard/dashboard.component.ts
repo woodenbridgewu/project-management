@@ -1,26 +1,21 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
-import { AuthService } from '../../core/services/auth.service';
 import { WorkspaceService } from '../../core/services/workspace.service';
 import { ProjectService } from '../../core/services/project.service';
 import { Workspace, Project } from '../../core/models/task.model';
-import { NotificationCenterComponent } from '../shared/notification-center/notification-center.component';
 
 @Component({
     selector: 'app-dashboard',
     standalone: true,
-    imports: [CommonModule, RouterLink, NotificationCenterComponent],
+    imports: [CommonModule, RouterLink],
     templateUrl: './dashboard.component.html',
     styleUrls: ['./dashboard.component.css']
 })
 export class DashboardComponent implements OnInit {
-    private authService = inject(AuthService);
     private workspaceService = inject(WorkspaceService);
     private projectService = inject(ProjectService);
     private router = inject(Router);
-
-    currentUser = this.authService.currentUser;
     workspaces = signal<Workspace[]>([]);
     recentProjects = signal<Project[]>([]);
     loading = signal(false);
@@ -77,8 +72,5 @@ export class DashboardComponent implements OnInit {
         });
     }
 
-    logout(): void {
-        this.authService.logout();
-    }
 }
 
