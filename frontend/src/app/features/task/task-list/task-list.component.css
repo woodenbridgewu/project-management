@@ -1,12 +1,13 @@
 .task-list-container {
+  min-height: calc(100vh - 64px);
   padding: 24px;
 }
 
-.task-list-header {
+.page-actions {
+  max-width: 1200px;
+  margin: 0 auto 24px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
+  justify-content: flex-end;
 }
 
 .filters {
