@@ -12,7 +12,7 @@ import { ActivityService } from '../../../core/services/activity.service';
 import { WorkspaceService } from '../../../core/services/workspace.service';
 import { WebSocketService } from '../../../core/services/websocket.service';
 import { AuthService } from '../../../core/services/auth.service';
-import { Task, Project, Comment, User, Tag, Attachment, Activity } from '../../../core/models/task.model';
+import { Task, Project, Comment, User, Tag, Attachment, Activity, WorkspaceMember } from '../../../core/models/task.model';
 
 @Component({
     selector: 'app-task-detail',
@@ -112,10 +112,13 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
         description: '',
         status: 'todo' as 'todo' | 'in_progress' | 'review' | 'done',
         priority: '' as '' | 'low' | 'medium' | 'high' | 'urgent',
-        assignee_name: '',
+        assigneeId: '' as string | '',
         due_date: '',
         estimated_hours: 0
     };
+
+    workspaceMembers = signal<WorkspaceMember[]>([]);
+    loadingMembers = signal(false);
 
     ngOnInit(): void {
         this.route.params.subscribe(params => {
@@ -155,9 +158,10 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
             next: (response) => {
                 this.project.set(response.project);
                 this.workspaceId = response.project.workspace_id;
-                // 載入標籤列表
+                // 載入標籤列表和工作區成員
                 if (this.workspaceId) {
                     this.loadTags();
+                    this.loadWorkspaceMembers();
                 }
                 // 確保 WebSocket 已連接，然後加入專案的 WebSocket 房間以接收即時更新
                 this.wsService.connect();
@@ -165,6 +169,21 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
             },
             error: (error) => {
                 console.error('載入專案失敗:', error);
+            }
+        });
+    }
+
+    loadWorkspaceMembers(): void {
+        if (!this.workspaceId) return;
+        this.loadingMembers.set(true);
+        this.workspaceService.getMembers(this.workspaceId).subscribe({
+            next: (response) => {
+                this.workspaceMembers.set(response.members);
+                this.loadingMembers.set(false);
+            },
+            error: (error) => {
+                console.error('載入工作區成員失敗:', error);
+                this.loadingMembers.set(false);
             }
         });
     }
@@ -806,7 +825,7 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
                 description: this.task()!.description || '',
                 status: this.task()!.status,
                 priority: this.task()!.priority || '',
-                assignee_name: this.task()!.assignee_name || '',
+                assigneeId: this.task()!.assignee_id || '',
                 due_date: this.getDateTimeLocalValue(this.task()!.due_date),
                 estimated_hours: this.task()!.estimated_hours || 0
             };
@@ -822,7 +841,7 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
             description: '',
             status: 'todo',
             priority: '',
-            assignee_name: '',
+            assigneeId: '',
             due_date: '',
             estimated_hours: 0
         };
@@ -850,6 +869,12 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
             updates.estimatedHours = this.editForm.estimated_hours;
         } else {
             updates.estimatedHours = null;
+        }
+
+        if (this.editForm.assigneeId) {
+            updates.assigneeId = this.editForm.assigneeId;
+        } else {
+            updates.assigneeId = null;
         }
 
         this.taskService.updateTask(this.taskId, updates).subscribe({

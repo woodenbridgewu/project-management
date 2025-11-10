@@ -88,14 +88,15 @@
         <div class="info-item">
           <label>指派給</label>
           @if (isEditing) {
-            <input
-              type="text"
+            <select
               class="form-control"
-              [(ngModel)]="editForm.assignee_name"
-              placeholder="指派給（暫時只顯示名稱）"
-              disabled
-            />
-            <small class="form-hint">指派功能將在後續版本中實作</small>
+              [(ngModel)]="editForm.assigneeId"
+            >
+              <option value="">未指派</option>
+              <option *ngFor="let member of workspaceMembers()" [value]="member.user_id">
+                {{ member.full_name }} {{ member.is_owner ? '(擁有者)' : '' }}
+              </option>
+            </select>
           } @else {
             <div class="assignee-info" *ngIf="task()?.assignee_name">
               @if (task()?.assignee_avatar) {
