@@ -3,6 +3,9 @@ import { Server as SocketIOServer } from 'socket.io';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { query } from '../database/index';
 import { z } from 'zod';
+import { EmailService } from '../services/email.service';
+import { EmailTemplatesService } from '../services/email-templates.service';
+import { config } from '../config/index';
 
 const markAsReadSchema = z.object({
     notificationIds: z.array(z.string().uuid())
@@ -256,10 +259,203 @@ export class NotificationController {
                 const unreadCount = parseInt(unreadCountResult.rows[0].count);
                 io.to(`user:${userId}`).emit('notification:unread_count', { unreadCount });
             }
+
+            // 發送 Email 通知（異步，不阻塞主流程）
+            this.sendEmailNotification(userId, type, title, content, relatedEntityType, relatedEntityId).catch(error => {
+                console.error('Failed to send email notification:', error);
+            });
         } catch (error) {
             console.error('Create notification error:', error);
             // 不拋出錯誤，避免影響主要業務流程
         }
+    }
+
+    /**
+     * 發送 Email 通知
+     */
+    private static async sendEmailNotification(
+        userId: string,
+        type: string,
+        title: string,
+        content: string | null,
+        relatedEntityType: string | null,
+        relatedEntityId: string | null
+    ): Promise<void> {
+        try {
+            // 不發送 Email 的通知類型列表
+            const skipEmailTypes = ['comment_added'];
+            if (skipEmailTypes.includes(type)) {
+                console.log(`Skipping email notification for type: ${type}`);
+                return;
+            }
+
+            // 獲取用戶資訊（包含 email）
+            const userResult = await query(
+                'SELECT email, full_name FROM users WHERE id = $1',
+                [userId]
+            );
+
+            if (userResult.rows.length === 0 || !userResult.rows[0].email) {
+                console.warn(`User ${userId} not found or has no email, skipping email notification`);
+                return;
+            }
+
+            const userEmail = userResult.rows[0].email;
+            const userName = userResult.rows[0].full_name || '使用者';
+
+            let emailHtml = '';
+            let emailSubject = title;
+
+            // 根據通知類型生成對應的 Email 模板
+            switch (type) {
+                case 'task_assigned': {
+                    // 獲取任務資訊
+                    if (relatedEntityType === 'task' && relatedEntityId) {
+                        const taskResult = await query(
+                            'SELECT title FROM tasks WHERE id = $1',
+                            [relatedEntityId]
+                        );
+                        const taskTitle = taskResult.rows[0]?.title || title.replace('您被指派了任務「', '').replace('」', '');
+                        const taskUrl = `${config.frontendUrl}/tasks/${relatedEntityId}`;
+                        
+                        // 嘗試獲取指派者資訊
+                        let assignerName: string | undefined;
+                        try {
+                            const assignerResult = await query(
+                                `SELECT u.full_name 
+                                 FROM tasks t
+                                 JOIN users u ON t.creator_id = u.id
+                                 WHERE t.id = $1`,
+                                [relatedEntityId]
+                            );
+                            assignerName = assignerResult.rows[0]?.full_name;
+                        } catch (e) {
+                            // 忽略錯誤
+                        }
+
+                        emailHtml = EmailTemplatesService.getTaskAssignedTemplate({
+                            recipientName: userName,
+                            taskTitle: taskTitle,
+                            taskUrl: taskUrl,
+                            assignerName: assignerName
+                        });
+                        emailSubject = `您被指派了任務「${taskTitle.substring(0, 50)}」`;
+                    }
+                    break;
+                }
+                case 'comment_added': {
+                    // 獲取任務和評論資訊
+                    if (relatedEntityType === 'task' && relatedEntityId) {
+                        const taskResult = await query(
+                            'SELECT title FROM tasks WHERE id = $1',
+                            [relatedEntityId]
+                        );
+                        const taskTitle = taskResult.rows[0]?.title || '任務';
+                        const taskUrl = `${config.frontendUrl}/tasks/${relatedEntityId}`;
+                        
+                        // 從 title 中提取評論者名稱
+                        const commenterNameMatch = title.match(/^(.+?) 在任務/);
+                        const commenterName = commenterNameMatch ? commenterNameMatch[1] : '某位使用者';
+                        const commentPreview = content || '新增了評論';
+
+                        emailHtml = EmailTemplatesService.getCommentAddedTemplate({
+                            recipientName: userName,
+                            commenterName: commenterName,
+                            taskTitle: taskTitle,
+                            commentPreview: commentPreview,
+                            taskUrl: taskUrl
+                        });
+                        emailSubject = `${commenterName} 在任務「${taskTitle.substring(0, 30)}」中新增了評論`;
+                    }
+                    break;
+                }
+                case 'member_invited': {
+                    // 獲取工作區資訊
+                    if (relatedEntityType === 'workspace' && relatedEntityId) {
+                        const workspaceResult = await query(
+                            'SELECT name FROM workspaces WHERE id = $1',
+                            [relatedEntityId]
+                        );
+                        const workspaceName = workspaceResult.rows[0]?.name || '工作區';
+                        const workspaceUrl = `${config.frontendUrl}/workspaces/${relatedEntityId}`;
+                        
+                        // 從 content 中提取邀請者名稱和角色
+                        const inviterMatch = content?.match(/^(.+?) 邀請您加入/);
+                        const inviterName = inviterMatch ? inviterMatch[1] : '某位使用者';
+                        const roleMatch = content?.match(/角色：(.+?)$/);
+                        const role = roleMatch ? roleMatch[1] : '成員';
+
+                        emailHtml = EmailTemplatesService.getMemberInvitedTemplate({
+                            recipientName: userName,
+                            inviterName: inviterName,
+                            workspaceName: workspaceName,
+                            role: role,
+                            workspaceUrl: workspaceUrl
+                        });
+                        emailSubject = `您被邀請加入工作區「${workspaceName}」`;
+                    }
+                    break;
+                }
+                default:
+                    // 對於其他類型的通知，使用簡單的 HTML 模板
+                    emailHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .content {
+            background: #f7fafc;
+            padding: 30px;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="content">
+        <h2>${this.escapeHtml(title)}</h2>
+        ${content ? `<p>${this.escapeHtml(content)}</p>` : ''}
+    </div>
+</body>
+</html>
+                    `.trim();
+                    break;
+            }
+
+            // 發送 Email
+            if (emailHtml) {
+                await EmailService.sendEmail({
+                    to: userEmail,
+                    subject: emailSubject,
+                    html: emailHtml
+                });
+            }
+        } catch (error) {
+            console.error('Send email notification error:', error);
+            // 不拋出錯誤，避免影響主要業務流程
+        }
+    }
+
+    /**
+     * 轉義 HTML 特殊字符（用於簡單模板）
+     */
+    private static escapeHtml(text: string): string {
+        const map: Record<string, string> = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, (m) => map[m]);
     }
 }
 
