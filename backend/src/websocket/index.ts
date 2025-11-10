@@ -18,6 +18,12 @@ export const initializeWebSocket = (io: SocketIOServer) => {
     io.on('connection', (socket) => {
         console.log('User connected:', socket.data.userId);
 
+        // 自動加入用戶個人房間（用於接收個人通知）
+        if (socket.data.userId) {
+            socket.join(`user:${socket.data.userId}`);
+            console.log(`User ${socket.data.userId} joined personal room`);
+        }
+
         // 加入工作區房間
         socket.on('join:workspace', (workspaceId: string) => {
             socket.join(`workspace:${workspaceId}`);
