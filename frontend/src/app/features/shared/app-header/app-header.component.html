@@ -1,0 +1,63 @@
+<header class="app-header">
+  <div class="header-content">
+    <!-- 左側：返回按鈕、Logo/標題 -->
+    <div class="header-left">
+      <button class="btn-back" *ngIf="showBackButton()" (click)="goBack()" title="返回">
+        ← 返回
+      </button>
+      <button class="logo-btn" (click)="goToDashboard()" title="返回首頁">
+        <h1>專案管理系統</h1>
+      </button>
+    </div>
+
+
+    <!-- 右側：通知和用戶資訊 -->
+    <div class="header-right">
+      <app-notification-center></app-notification-center>
+      <div class="user-menu-container" *ngIf="currentUser()">
+        <button class="user-menu-trigger" (click)="toggleUserMenu()" [class.active]="showUserMenu()">
+          <div class="user-avatar" *ngIf="currentUser()?.avatarUrl">
+            <img [src]="currentUser()?.avatarUrl" [alt]="currentUser()?.fullName || '使用者'">
+          </div>
+          <div class="user-avatar-placeholder" *ngIf="!currentUser()?.avatarUrl">
+            {{ getInitials(currentUser()?.fullName || '') }}
+          </div>
+        </button>
+        <div class="user-menu-dropdown" *ngIf="showUserMenu()" (click)="$event.stopPropagation()">
+          <div class="user-menu-header">
+            <div class="user-avatar-large" *ngIf="currentUser()?.avatarUrl">
+              <img [src]="currentUser()?.avatarUrl" [alt]="currentUser()?.fullName || '使用者'">
+            </div>
+            <div class="user-avatar-large-placeholder" *ngIf="!currentUser()?.avatarUrl">
+              {{ getInitials(currentUser()?.fullName || '') }}
+            </div>
+            <div class="user-menu-info">
+              <div class="user-menu-name">{{ currentUser()?.fullName || '使用者' }}</div>
+              <div class="user-menu-email">{{ currentUser()?.email || '' }}</div>
+            </div>
+          </div>
+          <div class="user-menu-divider"></div>
+          <div class="user-menu-items">
+            <button class="user-menu-item" disabled title="即將推出">
+              <span class="menu-icon">⚙️</span>
+              <span>個人設定</span>
+            </button>
+            <button class="user-menu-item" disabled title="即將推出">
+              <span class="menu-icon">🔄</span>
+              <span>切換工作區</span>
+            </button>
+            <div class="user-menu-divider"></div>
+            <button class="user-menu-item user-menu-item-danger" (click)="logout()">
+              <span class="menu-icon">🚪</span>
+              <span>登出</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="user-info-loading" *ngIf="!currentUser()">
+        <div class="user-avatar-placeholder">U</div>
+        <span class="user-name">載入中...</span>
+      </div>
+    </div>
+  </div>
+</header>
