@@ -1,7 +1,9 @@
 import { Response } from 'express';
+import { Server as SocketIOServer } from 'socket.io';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { query } from '../database/index';
 import { z } from 'zod';
+import { NotificationController } from './notification.controller';
 
 const createWorkspaceSchema = z.object({
     name: z.string().min(1).max(255),
@@ -351,6 +353,35 @@ export class WorkspaceController {
                 WHERE wm.id = $1`,
                 [result.rows[0].id]
             );
+
+            // 取得工作區名稱
+            const workspaceResult = await query(
+                'SELECT name FROM workspaces WHERE id = $1',
+                [id]
+            );
+            const workspaceName = workspaceResult.rows[0]?.name || '工作區';
+
+            // 發送通知給被邀請的用戶
+            try {
+                const io = req.app.get('io') as SocketIOServer;
+                // 取得邀請者的名稱
+                const inviterResult = await query(
+                    'SELECT full_name FROM users WHERE id = $1',
+                    [req.user!.id]
+                );
+                const inviterName = inviterResult.rows[0]?.full_name || '使用者';
+                await NotificationController.createNotification(
+                    invitedUserId,
+                    'member_invited',
+                    `您被邀請加入工作區「${workspaceName}」`,
+                    `${inviterName} 邀請您加入工作區「${workspaceName}」，角色：${inviteData.role === 'admin' ? '管理員' : inviteData.role === 'member' ? '成員' : '訪客'}`,
+                    'workspace',
+                    id,
+                    io
+                );
+            } catch (notifError) {
+                console.error('Failed to create invitation notification:', notifError);
+            }
 
             res.status(201).json({ member: memberInfo.rows[0] });
         } catch (error) {
