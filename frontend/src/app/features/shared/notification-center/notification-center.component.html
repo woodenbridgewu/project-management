@@ -1,0 +1,54 @@
+<div class="notification-center">
+  <button 
+    class="notification-button" 
+    (click)="toggleDropdown()"
+    [class.has-unread]="unreadCount() > 0"
+    title="通知"
+  >
+    <span class="icon">🔔</span>
+    <span class="badge" *ngIf="unreadCount() > 0">{{ unreadCount() > 99 ? '99+' : unreadCount() }}</span>
+  </button>
+
+  <div class="notification-dropdown" *ngIf="showDropdown()" (click)="$event.stopPropagation()">
+    <div class="dropdown-header">
+      <h3>通知</h3>
+      <div class="header-actions">
+        <button class="btn-link" (click)="markAllAsRead()" *ngIf="unreadCount() > 0">
+          全部標記為已讀
+        </button>
+      </div>
+    </div>
+
+    <div class="notification-list" *ngIf="!loading(); else loadingTemplate">
+      <div 
+        class="notification-item" 
+        *ngFor="let notification of notifications()"
+        [class.unread]="!notification.is_read"
+        (click)="handleNotificationClick(notification)"
+      >
+        <div class="notification-icon">{{ getNotificationIcon(notification.type) }}</div>
+        <div class="notification-content">
+          <div class="notification-title">{{ notification.title }}</div>
+          <div class="notification-text" *ngIf="notification.content">{{ notification.content }}</div>
+          <div class="notification-time">{{ formatTime(notification.created_at) }}</div>
+        </div>
+        <div class="notification-actions">
+          <button 
+            class="btn-icon" 
+            (click)="deleteNotification(notification, $event)"
+            title="刪除"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+      <div class="empty-state" *ngIf="notifications().length === 0">
+        <p>沒有通知</p>
+      </div>
+    </div>
+
+    <ng-template #loadingTemplate>
+      <div class="loading">載入中...</div>
+    </ng-template>
+  </div>
+</div>
