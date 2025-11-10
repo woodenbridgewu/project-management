@@ -4,6 +4,7 @@ import { io, Socket } from 'socket.io-client';
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
 import { Task, Comment, Attachment, Tag, Section } from '../models/task.model';
+import { Notification } from './notification.service';
 
 @Injectable({ providedIn: 'root' })
 export class WebSocketService {
@@ -170,5 +171,22 @@ export class WebSocketService {
 
     emitTypingStart(projectId: string, taskId: string): void {
         this.socket?.emit('typing:start', { projectId, taskId });
+    }
+
+    // 通知相關事件
+    onNotificationNew(): Observable<Notification> {
+        return new Observable(observer => {
+            this.socket?.on('notification:new', (notification) => {
+                observer.next(notification);
+            });
+        });
+    }
+
+    onNotificationUnreadCount(): Observable<{ unreadCount: number }> {
+        return new Observable(observer => {
+            this.socket?.on('notification:unread_count', (data) => {
+                observer.next(data);
+            });
+        });
     }
 }
