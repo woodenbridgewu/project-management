@@ -14,6 +14,7 @@ import { commentRouter } from './routes/comment.routes';
 import { tagRouter } from './routes/tag.routes';
 import { attachmentRouter } from './routes/attachment.routes';
 import { activityRouter } from './routes/activity.routes';
+import notificationRouter from './routes/notification.routes';
 import { initializeWebSocket } from './websocket/index';
 import path from 'path';
 
@@ -48,6 +49,7 @@ app.use('/api/comments', commentRouter);
 app.use('/api/tags', tagRouter);
 app.use('/api/attachments', attachmentRouter);
 app.use('/api/activities', activityRouter);
+app.use('/api/notifications', notificationRouter);
 
 // 錯誤處理
 app.use(errorHandler);
