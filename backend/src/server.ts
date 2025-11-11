@@ -17,6 +17,7 @@ import { activityRouter } from './routes/activity.routes';
 import notificationRouter from './routes/notification.routes';
 import { initializeWebSocket } from './websocket/index';
 import { EmailService } from './services/email.service';
+import { StorageService } from './services/storage.service';
 import path from 'path';
 
 const app = express();
@@ -77,4 +78,28 @@ httpServer.listen(PORT, async () => {
     } else {
         console.log('ℹ️  Email service not configured (SMTP_HOST not set), email notifications disabled');
     }
+
+    // 初始化 Storage Service（檢查配置）
+    console.log('\n📦 Storage Service Configuration:');
+    console.log(`   Enabled: ${config.storage.enabled}`);
+    console.log(`   Provider: ${config.storage.provider}`);
+    console.log(`   Bucket: ${config.storage.bucket}`);
+    console.log(`   Endpoint: ${config.storage.endpoint || '(not set)'}`);
+    console.log(`   Region: ${config.storage.region}`);
+    console.log(`   Access Key ID: ${config.storage.accessKeyId ? '***' + config.storage.accessKeyId.slice(-4) : '(not set)'}`);
+    console.log(`   Secret Key: ${config.storage.secretAccessKey ? '***' + config.storage.secretAccessKey.slice(-4) : '(not set)'}`);
+    
+    if (config.storage.enabled) {
+        // 觸發初始化（延遲初始化，但會輸出日誌）
+        const isEnabled = StorageService.isS3Enabled();
+        if (isEnabled) {
+            console.log('✅ Storage service initialized successfully (S3/MinIO)');
+        } else {
+            console.warn('⚠️  Storage service enabled but initialization failed, falling back to local storage');
+            console.warn('   Please check your STORAGE_* environment variables');
+        }
+    } else {
+        console.log('ℹ️  Storage service disabled (STORAGE_ENABLED not set or false), using local storage');
+    }
+    console.log('');
 });

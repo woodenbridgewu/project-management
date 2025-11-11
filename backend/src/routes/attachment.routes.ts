@@ -12,6 +12,9 @@ router.use(authenticate);
 router.get('/tasks/:taskId/attachments', (req, res) => attachmentController.getAttachmentsByTask(req, res));
 router.post('/tasks/:taskId/attachments', upload.single('file'), (req, res) => attachmentController.uploadAttachment(req, res));
 
+// 附件代理路由（用於 MinIO 檔案訪問，作為備用方案）
+router.get('/:id/proxy', (req, res) => attachmentController.proxyAttachment(req, res));
+
 // 附件操作路由
 router.delete('/:id', (req, res) => attachmentController.deleteAttachment(req, res));
 

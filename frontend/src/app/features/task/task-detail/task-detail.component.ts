@@ -1079,7 +1079,7 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
     }
 
     downloadAttachment(attachment: Attachment): void {
-        const url = this.attachmentService.getAttachmentUrl(attachment.file_url);
+        const url = this.attachmentService.getAttachmentUrl(attachment.file_url, attachment.id);
         window.open(url, '_blank');
     }
 
@@ -1089,6 +1089,21 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
 
     getFileIcon(fileType: string): string {
         return this.attachmentService.getFileIcon(fileType);
+    }
+
+    isImage(fileType: string): boolean {
+        return this.attachmentService.isImage(fileType);
+    }
+
+    getImagePreviewUrl(attachment: Attachment): string {
+        return this.attachmentService.getImagePreviewUrl(attachment);
+    }
+
+    onImageError(event: Event): void {
+        const img = event.target as HTMLImageElement;
+        if (img) {
+            img.style.display = 'none';
+        }
     }
 
     canDeleteAttachment(attachment: Attachment): boolean {

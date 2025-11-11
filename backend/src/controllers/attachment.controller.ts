@@ -5,6 +5,8 @@ import { query } from '../database/index';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { StorageService } from '../services/storage.service';
+import { pipeline } from 'stream/promises';
 
 // 從 Content-Disposition header 解析檔名
 function parseFileNameFromHeader(req: any): string | null {
@@ -287,6 +289,8 @@ export class AttachmentController {
             );
 
             // 將時間戳轉換為 ISO 8601 格式（UTC）
+            // 如果 bucket 是公開的，直接使用原始 URL
+            // 如果 bucket 是私有的，可以生成預簽名 URL（目前註釋掉，因為 bucket 已設置為公開）
             const attachments = result.rows.map((row: any) => {
                 if (row.uploaded_at) {
                     const uploadedAt = new Date(row.uploaded_at + 'Z');
@@ -294,6 +298,17 @@ export class AttachmentController {
                         row.uploaded_at = uploadedAt.toISOString();
                     }
                 }
+
+                // 如果 bucket 是公開的，直接使用原始 URL（不需要預簽名 URL）
+                // 如果需要使用預簽名 URL（bucket 為私有時），取消下面的註釋：
+                // if (StorageService.isS3Enabled() && row.file_url.startsWith('http')) {
+                //     const fileKey = StorageService.extractKeyFromUrl(row.file_url);
+                //     const presignedUrl = await StorageService.getPresignedUrl(fileKey, 86400);
+                //     if (presignedUrl) {
+                //         row.file_url = presignedUrl;
+                //     }
+                // }
+
                 return row;
             });
 
@@ -317,8 +332,8 @@ export class AttachmentController {
             // 檢查任務訪問權限
             const access = await this.checkTaskAccess(taskId, req.user!.id);
             if (!access.hasAccess) {
-                // 刪除已上傳的檔案
-                if (file.path) {
+                // 刪除已上傳的檔案（本地暫存）
+                if (file.path && fs.existsSync(file.path)) {
                     fs.unlinkSync(file.path);
                 }
                 return res.status(403).json({ error: 'Access denied' });
@@ -335,13 +350,20 @@ export class AttachmentController {
                 console.log('解析後檔名:', fileName);
             }
 
+            // 上傳檔案到儲存服務（S3/MinIO 或本地）
+            const uploadResult = await StorageService.uploadFile(
+                file.path,
+                fileName,
+                file.mimetype,
+                'attachments'
+            );
+
             // 建立附件記錄
-            const fileUrl = `/uploads/${file.filename}`;
             const result = await query(
                 `INSERT INTO task_attachments (task_id, file_name, file_size, file_type, file_url, uploaded_by)
                  VALUES ($1, $2, $3, $4, $5, $6)
                  RETURNING *`,
-                [taskId, fileName, file.size, file.mimetype, fileUrl, req.user!.id]
+                [taskId, fileName, file.size, file.mimetype, uploadResult.url, req.user!.id]
             );
 
             const attachment = result.rows[0];
@@ -437,10 +459,12 @@ export class AttachmentController {
                 return res.status(403).json({ error: 'Only the uploader can delete this attachment' });
             }
 
-            // 刪除實體檔案
-            const filePath = path.join(process.cwd(), attachment.file_url);
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
+            // 刪除實體檔案（使用 Storage Service）
+            const fileKey = StorageService.extractKeyFromUrl(attachment.file_url);
+            const deleteResult = await StorageService.deleteFile(fileKey);
+            if (!deleteResult) {
+                console.warn(`[Attachment] Failed to delete file from storage: ${fileKey}`);
+                // 即使檔案刪除失敗，也繼續刪除資料庫記錄（避免孤立記錄）
             }
 
             // 刪除資料庫記錄
@@ -473,6 +497,68 @@ export class AttachmentController {
             res.status(204).send();
         } catch (error) {
             console.error('Delete attachment error:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    // 代理檔案訪問（用於 MinIO 私有檔案）
+    async proxyAttachment(req: AuthRequest, res: Response) {
+        try {
+            const { id } = req.params;
+
+            // 取得附件資訊
+            const attachmentResult = await query(
+                `SELECT a.*, t.id as task_id
+                 FROM task_attachments a
+                 JOIN tasks t ON a.task_id = t.id
+                 WHERE a.id = $1`,
+                [id]
+            );
+
+            if (attachmentResult.rows.length === 0) {
+                return res.status(404).json({ error: 'Attachment not found' });
+            }
+
+            const attachment = attachmentResult.rows[0];
+
+            // 檢查任務訪問權限
+            const access = await this.checkTaskAccess(attachment.task_id, req.user!.id);
+            if (!access.hasAccess) {
+                return res.status(403).json({ error: 'Access denied' });
+            }
+
+            // 如果是 MinIO 檔案，使用代理
+            if (StorageService.isS3Enabled() && attachment.file_url.startsWith('http')) {
+                const fileKey = StorageService.extractKeyFromUrl(attachment.file_url);
+                const fileStream = await StorageService.getFileStream(fileKey);
+
+                if (!fileStream) {
+                    return res.status(404).json({ error: 'File not found in storage' });
+                }
+
+                // 設置適當的 headers
+                res.setHeader('Content-Type', attachment.file_type || 'application/octet-stream');
+                res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(attachment.file_name)}"`);
+
+                // 將檔案流傳輸到響應
+                await pipeline(fileStream, res);
+                return;
+            }
+
+            // 本地檔案，直接提供
+            const filePath = path.join(process.cwd(), attachment.file_url);
+            if (!fs.existsSync(filePath)) {
+                return res.status(404).json({ error: 'File not found' });
+            }
+
+            res.sendFile(filePath, {
+                headers: {
+                    'Content-Type': attachment.file_type || 'application/octet-stream',
+                    'Content-Disposition': `inline; filename="${encodeURIComponent(attachment.file_name)}"`
+                }
+            });
+        } catch (error) {
+            console.error('Proxy attachment error:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
     }

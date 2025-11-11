@@ -28,13 +28,25 @@ export class AttachmentService {
         return this.http.delete<void>(`${environment.apiUrl}/attachments/${attachmentId}`);
     }
 
-    getAttachmentUrl(fileUrl: string): string {
-        // 如果 fileUrl 已經是完整 URL，直接返回
+    getAttachmentUrl(fileUrl: string, attachmentId?: string): string {
+        // 如果 fileUrl 已經是完整 URL（S3/MinIO 預簽名 URL），直接返回
+        // 預簽名 URL 已經包含臨時訪問權限，不需要額外認證
         if (fileUrl.startsWith('http')) {
             return fileUrl;
         }
-        // 否則拼接 API URL
+        // 否則拼接 API URL（本地儲存）
         return `${environment.apiUrl.replace('/api', '')}${fileUrl}`;
+    }
+
+    isImage(fileType: string): boolean {
+        return fileType.startsWith('image/');
+    }
+
+    getImagePreviewUrl(attachment: Attachment): string {
+        if (this.isImage(attachment.file_type)) {
+            return this.getAttachmentUrl(attachment.file_url, attachment.id);
+        }
+        return '';
     }
 
     formatFileSize(bytes: number): string {

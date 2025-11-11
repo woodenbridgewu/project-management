@@ -32,5 +32,16 @@ export const config = {
         user: process.env.SMTP_USER || '',
         password: process.env.SMTP_PASSWORD || '',
         from: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@project-management.com'
+    },
+
+    storage: {
+        enabled: process.env.STORAGE_ENABLED === 'true',
+        provider: process.env.STORAGE_PROVIDER || 'local', // 'local', 's3', 'minio'
+        bucket: process.env.STORAGE_BUCKET || 'project-management',
+        region: process.env.STORAGE_REGION || 'us-east-1',
+        accessKeyId: process.env.STORAGE_ACCESS_KEY_ID || '',
+        secretAccessKey: process.env.STORAGE_SECRET_ACCESS_KEY || '',
+        endpoint: process.env.STORAGE_ENDPOINT || '', // MinIO 端點，例如: http://localhost:9000
+        publicUrl: process.env.STORAGE_PUBLIC_URL || '' // 公開訪問 URL，例如: https://cdn.example.com
     }
 };
