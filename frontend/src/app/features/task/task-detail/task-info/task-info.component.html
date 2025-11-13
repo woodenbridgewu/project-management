@@ -1,0 +1,176 @@
+<!-- 任務標題 -->
+<div class="task-title-section">
+  @if (isEditing) {
+    <input
+      type="text"
+      class="title-input"
+      [value]="editForm.title"
+      (input)="onFormChange('title', $any($event.target).value)"
+      placeholder="任務標題"
+    />
+  } @else {
+    <h1>{{ task?.title }}</h1>
+  }
+</div>
+
+<!-- 任務狀態和優先級 -->
+<div class="task-meta-section">
+  <div class="meta-item">
+    <label>狀態</label>
+    @if (isEditing) {
+      <select 
+        [value]="editForm.status" 
+        (change)="onFormChange('status', $any($event.target).value)" 
+        class="form-control"
+      >
+        <option value="todo">待辦</option>
+        <option value="in_progress">進行中</option>
+        <option value="review">審核中</option>
+        <option value="done">已完成</option>
+      </select>
+    } @else {
+      <span class="status-badge" [class]="'status-' + task?.status">
+        {{ getStatusLabel(task?.status || 'todo') }}
+      </span>
+    }
+  </div>
+
+  <div class="meta-item">
+    <label>優先級</label>
+    @if (isEditing) {
+      <select 
+        [value]="editForm.priority" 
+        (change)="onFormChange('priority', $any($event.target).value)" 
+        class="form-control"
+      >
+        <option value="">無</option>
+        <option value="low">低</option>
+        <option value="medium">中</option>
+        <option value="high">高</option>
+        <option value="urgent">緊急</option>
+      </select>
+    } @else {
+      <span class="priority-badge" [class]="'priority-' + (task?.priority || 'none')" *ngIf="task?.priority">
+        {{ getPriorityLabel(task?.priority || '') }}
+      </span>
+      <span *ngIf="!task?.priority">無</span>
+    }
+  </div>
+</div>
+
+<!-- 任務描述 -->
+<div class="task-description-section">
+  <label>描述</label>
+  @if (isEditing) {
+    <textarea
+      class="description-textarea"
+      [value]="editForm.description"
+      (input)="onFormChange('description', $any($event.target).value)"
+      rows="6"
+      placeholder="輸入任務描述..."
+    ></textarea>
+  } @else {
+    <div class="description-content">
+      {{ task?.description || '無描述' }}
+    </div>
+  }
+</div>
+
+<!-- 任務資訊 -->
+<div class="task-info-grid">
+  <div class="info-item">
+    <label>指派給</label>
+    @if (isEditing) {
+      <select
+        class="form-control"
+        [value]="editForm.assigneeId"
+        (change)="onFormChange('assigneeId', $any($event.target).value)"
+      >
+        <option value="">未指派</option>
+        <option *ngFor="let member of workspaceMembers()" [value]="member.user_id">
+          {{ member.full_name }} {{ member.is_owner ? '(擁有者)' : '' }}
+        </option>
+      </select>
+    } @else {
+      <div class="assignee-info" *ngIf="task?.assignee_name">
+        @if (task?.assignee_avatar) {
+          <img [src]="task?.assignee_avatar" [alt]="task?.assignee_name" class="avatar">
+        } @else {
+          <div class="avatar-placeholder">
+            {{ getInitials(task?.assignee_name || '') }}
+          </div>
+        }
+        <span>{{ task?.assignee_name }}</span>
+      </div>
+      <span *ngIf="!task?.assignee_name">未指派</span>
+    }
+  </div>
+
+  <div class="info-item">
+    <label>建立者</label>
+    <div class="creator-info" *ngIf="task?.creator_name">
+      <span>{{ task?.creator_name }}</span>
+    </div>
+    <span *ngIf="!task?.creator_name">未知</span>
+  </div>
+
+  <div class="info-item">
+    <label>截止日期</label>
+    @if (isEditing) {
+      <input
+        type="datetime-local"
+        class="form-control"
+        [value]="getDateTimeLocalValue(task?.due_date)"
+        (input)="onDueDateChange($event)"
+      />
+    } @else {
+      <div class="due-date" [class.overdue]="isOverdue(task?.due_date)">
+        {{ formatDate(task?.due_date) || '無' }}
+      </div>
+    }
+  </div>
+
+  <div class="info-item">
+    <label>預估時數</label>
+    @if (isEditing) {
+      <input
+        type="number"
+        class="form-control"
+        [value]="editForm.estimated_hours"
+        (input)="onFormChange('estimated_hours', +$any($event.target).value)"
+        min="0"
+        step="0.5"
+        placeholder="預估時數"
+      />
+    } @else {
+      <span>{{ task?.estimated_hours || '無' }}</span>
+    }
+  </div>
+
+  <div class="info-item">
+    <label>區段</label>
+    <span>{{ task?.section_name || '未分類' }}</span>
+  </div>
+
+  <div class="info-item">
+    <label>建立時間</label>
+    <span>{{ formatDateTime(task?.created_at) }}</span>
+  </div>
+</div>
+
+<!-- 任務統計 -->
+<div class="task-stats">
+  <div class="stat-item" *ngIf="task?.subtask_count">
+    <span class="stat-label">子任務</span>
+    <span class="stat-value">{{ task?.subtask_count }}</span>
+  </div>
+  <div class="stat-item" *ngIf="task?.comment_count">
+    <span class="stat-label">評論</span>
+    <span class="stat-value">{{ task?.comment_count }}</span>
+  </div>
+  <div class="stat-item" *ngIf="task?.attachment_count">
+    <span class="stat-label">附件</span>
+    <span class="stat-value">{{ task?.attachment_count }}</span>
+  </div>
+</div>
+

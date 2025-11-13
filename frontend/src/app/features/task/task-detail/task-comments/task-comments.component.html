@@ -1,0 +1,78 @@
+@if (!isEditing) {
+  <div class="comments-section">
+    <h3 class="section-title">評論</h3>
+    
+    <!-- 新增評論表單 -->
+    <div class="comment-form">
+      <textarea
+        class="comment-input"
+        [(ngModel)]="newCommentContent"
+        placeholder="輸入評論..."
+        rows="3"
+      ></textarea>
+      <div class="comment-form-actions">
+        <button 
+          class="btn-primary" 
+          (click)="addComment()" 
+          [disabled]="!newCommentContent.trim() || savingComment()"
+        >
+          {{ savingComment() ? '發送中...' : '發送' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- 評論列表 -->
+    @if (loadingComments()) {
+      <div class="loading-comments">載入評論中...</div>
+    } @else {
+      <div class="comments-list">
+        @for (comment of comments(); track comment.id) {
+          <div class="comment-item">
+            <div class="comment-header">
+              <div class="comment-author">
+                @if (comment.user.avatarUrl) {
+                  <img [src]="comment.user.avatarUrl" [alt]="comment.user.fullName" class="comment-avatar">
+                } @else {
+                  <div class="comment-avatar-placeholder">
+                    {{ getInitials(comment.user.fullName || '') }}
+                  </div>
+                }
+                <div class="comment-author-info">
+                  <span class="comment-author-name">{{ comment.user.fullName || '未知使用者' }}</span>
+                  <span class="comment-time">{{ formatCommentTime(comment.created_at) }}</span>
+                </div>
+              </div>
+              @if (canEditComment(comment)) {
+                <div class="comment-actions">
+                  @if (editingCommentId() === comment.id) {
+                    <button class="btn-link" (click)="cancelEditComment()">取消</button>
+                    <button class="btn-link" (click)="saveEditComment(comment.id)">儲存</button>
+                  } @else {
+                    <button class="btn-link" (click)="startEditComment(comment)">編輯</button>
+                    <button class="btn-link btn-danger-link" (click)="deleteComment(comment.id)">刪除</button>
+                  }
+                </div>
+              }
+            </div>
+            <div class="comment-content">
+              @if (editingCommentId() === comment.id) {
+                <textarea
+                  class="comment-edit-input"
+                  [(ngModel)]="editCommentContent"
+                  rows="3"
+                ></textarea>
+              } @else {
+                <p>{{ comment.content }}</p>
+              }
+            </div>
+          </div>
+        } @empty {
+          <div class="empty-comments">
+            <p>尚無評論，開始第一個評論吧！</p>
+          </div>
+        }
+      </div>
+    }
+  </div>
+}
+

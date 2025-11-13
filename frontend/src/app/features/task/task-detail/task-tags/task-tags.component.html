@@ -1,0 +1,232 @@
+<div class="tags-section">
+  <div class="section-header">
+    <h3 class="section-title">標籤</h3>
+    <div class="header-actions">
+      <button class="btn-link" (click)="showTagModal = true">+ 新增標籤</button>
+      <button class="btn-link" (click)="showManageTagsModal = true">管理標籤</button>
+    </div>
+  </div>
+  
+  <!-- 任務標籤列表 -->
+  <div class="task-tags-list">
+    @for (tag of task?.tags || []; track tag.id) {
+      <span 
+        class="tag-badge" 
+        [style.background-color]="tag.color"
+        [style.color]="getContrastColor(tag.color)"
+      >
+        {{ tag.name }}
+        <button 
+          class="tag-remove" 
+          (click)="removeTagFromTask(tag.id)"
+          [style.color]="getContrastColor(tag.color)"
+        >
+          ×
+        </button>
+      </span>
+    } @empty {
+      <span class="no-tags">尚無標籤</span>
+    }
+  </div>
+
+  <!-- 添加標籤 -->
+  @if (availableTags().length > 0) {
+    <div class="add-tag-section">
+      <label>添加標籤</label>
+      <div class="available-tags">
+        @for (tag of availableTags(); track tag.id) {
+          @if (!isTagAttached(tag.id)) {
+            <button 
+              class="tag-option"
+              [style.background-color]="tag.color"
+              [style.color]="getContrastColor(tag.color)"
+              (click)="addTagToTask(tag.id)"
+            >
+              {{ tag.name }}
+            </button>
+          }
+        }
+      </div>
+    </div>
+  }
+</div>
+
+<!-- 新增標籤模態框 -->
+<div class="modal-overlay" *ngIf="showTagModal" (click)="closeTagModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>新增標籤</h2>
+      <button class="btn-close" (click)="closeTagModal()">×</button>
+    </div>
+    <form (ngSubmit)="createTag()" class="modal-form">
+      <div class="form-group">
+        <label for="tag-name">名稱 *</label>
+        <input 
+          type="text" 
+          id="tag-name" 
+          [value]="newTagForm.name"
+          (input)="onNewTagFormChange('name', $any($event.target).value)"
+          name="tag-name"
+          required
+          placeholder="輸入標籤名稱"
+          maxlength="100"
+        />
+      </div>
+      <div class="form-group">
+        <label for="tag-color">顏色</label>
+        <!-- 預設顏色選項 -->
+        <div class="preset-colors">
+          @for (presetColor of presetColors; track presetColor) {
+            <button
+              type="button"
+              class="preset-color-btn"
+              [class.active]="newTagForm.color === presetColor"
+              [style.background-color]="presetColor"
+              (click)="onNewTagFormChange('color', presetColor)"
+              [title]="presetColor"
+            >
+              @if (newTagForm.color === presetColor) {
+                <span class="check-icon">✓</span>
+              }
+            </button>
+          }
+        </div>
+        <!-- 自訂顏色選擇器 -->
+        <div class="color-picker-group">
+          <input 
+            type="color" 
+            id="tag-color" 
+            [value]="newTagForm.color"
+            (input)="onNewTagFormChange('color', $any($event.target).value)"
+            name="tag-color"
+          />
+          <input 
+            type="text" 
+            [value]="newTagForm.color"
+            (input)="onNewTagFormChange('color', $any($event.target).value)"
+            name="tag-color-hex"
+            placeholder="#808080"
+            pattern="^#[0-9A-Fa-f]{6}$"
+          />
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" (click)="closeTagModal()">取消</button>
+        <button type="submit" class="btn-primary" [disabled]="savingTag() || !newTagForm.name.trim()">
+          {{ savingTag() ? '建立中...' : '建立' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 管理標籤模態框 -->
+<div class="modal-overlay" *ngIf="showManageTagsModal" (click)="closeManageTagsModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>管理標籤</h2>
+      <button class="btn-close" (click)="closeManageTagsModal()">×</button>
+    </div>
+    <div class="modal-body">
+      @if (loadingTags()) {
+        <div class="loading">載入中...</div>
+      } @else if (availableTags().length > 0) {
+        <div class="tags-management-list">
+          @for (tag of availableTags(); track tag.id) {
+            <div class="tag-management-item">
+              <span 
+                class="tag-preview" 
+                [style.background-color]="tag.color"
+                [style.color]="getContrastColor(tag.color)"
+              >
+                {{ tag.name }}
+              </span>
+              <div class="tag-actions">
+                <button class="btn-icon" (click)="startEditTag(tag)" title="編輯">
+                  ✏️
+                </button>
+                <button class="btn-icon btn-danger-icon" (click)="confirmDeleteTag(tag)" title="刪除">
+                  🗑️
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="empty-state">
+          <p>尚無標籤，請先建立標籤</p>
+        </div>
+      }
+    </div>
+  </div>
+</div>
+
+<!-- 編輯標籤模態框 -->
+<div class="modal-overlay" *ngIf="editingTag" (click)="cancelEditTag()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>編輯標籤</h2>
+      <button class="btn-close" (click)="cancelEditTag()">×</button>
+    </div>
+    <form (ngSubmit)="updateTag()" class="modal-form">
+      <div class="form-group">
+        <label for="edit-tag-name">名稱 *</label>
+        <input 
+          type="text" 
+          id="edit-tag-name" 
+          [value]="editTagForm.name"
+          (input)="onEditTagFormChange('name', $any($event.target).value)"
+          name="edit-tag-name"
+          required
+          placeholder="輸入標籤名稱"
+          maxlength="100"
+        />
+      </div>
+      <div class="form-group">
+        <label for="edit-tag-color">顏色</label>
+        <!-- 預設顏色選項 -->
+        <div class="preset-colors">
+          @for (presetColor of presetColors; track presetColor) {
+            <button
+              type="button"
+              class="preset-color-btn"
+              [class.active]="editTagForm.color === presetColor"
+              [style.background-color]="presetColor"
+              (click)="onEditTagFormChange('color', presetColor)"
+              [title]="presetColor"
+            >
+              @if (editTagForm.color === presetColor) {
+                <span class="check-icon">✓</span>
+              }
+            </button>
+          }
+        </div>
+        <!-- 自訂顏色選擇器 -->
+        <div class="color-picker-group">
+          <input 
+            type="color" 
+            id="edit-tag-color" 
+            [value]="editTagForm.color"
+            (input)="onEditTagFormChange('color', $any($event.target).value)"
+            name="edit-tag-color"
+          />
+          <input 
+            type="text" 
+            [value]="editTagForm.color"
+            (input)="onEditTagFormChange('color', $any($event.target).value)"
+            name="edit-tag-color-hex"
+            placeholder="#808080"
+            pattern="^#[0-9A-Fa-f]{6}$"
+          />
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" (click)="cancelEditTag()">取消</button>
+        <button type="submit" class="btn-primary" [disabled]="savingTag() || !editTagForm.name.trim()">
+          {{ savingTag() ? '更新中...' : '更新' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+

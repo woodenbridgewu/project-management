@@ -1,0 +1,174 @@
+.attachments-section {
+  margin-top: 16px;
+  padding-top: 32px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.attachment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a202c;
+  margin: 0;
+}
+
+.attachment-header .section-title {
+  margin-bottom: 0;
+}
+
+.file-upload-label {
+  cursor: pointer;
+}
+
+.file-input {
+  display: none;
+}
+
+.file-upload-button {
+  display: inline-block;
+  background: #667eea;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  border: none;
+}
+
+.file-upload-button:hover {
+  background: #5568d3;
+}
+
+.file-upload-button:disabled {
+  background: #cbd5e0;
+  cursor: not-allowed;
+}
+
+.selected-file-info {
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: #f7fafc;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.selected-file-name {
+  font-size: 14px;
+  color: #4a5568;
+  font-style: italic;
+}
+
+.loading-attachments {
+  text-align: center;
+  padding: 24px;
+  color: #718096;
+}
+
+.attachments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f7fafc;
+  border-radius: 8px;
+  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+  transition: background 0.2s;
+}
+
+.attachment-item:hover {
+  background: #edf2f7;
+}
+
+.attachment-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.attachment-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.attachment-name {
+  font-weight: 500;
+  color: #1a202c;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: underline;
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+.attachment-name:hover {
+  color: #667eea;
+}
+
+.attachment-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #718096;
+  flex-wrap: wrap;
+}
+
+.attachment-separator {
+  color: #cbd5e0;
+}
+
+.attachment-size,
+.attachment-uploader,
+.attachment-time {
+  white-space: nowrap;
+}
+
+.attachment-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-link {
+  background: transparent;
+  border: none;
+  color: #667eea;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.btn-link:hover {
+  background: #edf2f7;
+}
+
+.btn-danger-link {
+  color: #e53e3e;
+}
+
+.empty-attachments {
+  text-align: center;
+  padding: 40px;
+  color: #a0aec0;
+}
+
+.empty-attachments p {
+  margin: 0;
+}
+

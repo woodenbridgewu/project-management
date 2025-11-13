@@ -1,0 +1,120 @@
+<div class="subtasks-section">
+  <div class="section-header">
+    <h3 class="section-title">子任務</h3>
+    <button class="btn-link" (click)="showSubtaskModal = true" *ngIf="!isEditing">
+      + 新增子任務
+    </button>
+  </div>
+  
+  @if (loadingSubtasks()) {
+    <div class="loading">載入中...</div>
+  } @else if (subtasks().length > 0) {
+    <div class="subtasks-list">
+      @for (subtask of subtasks(); track subtask.id) {
+        <div class="subtask-item">
+          <div class="subtask-checkbox">
+            <input 
+              type="checkbox" 
+              [checked]="subtask.status === 'done'"
+              (change)="toggleSubtaskStatus(subtask)"
+            />
+          </div>
+          <div class="subtask-content" [class.completed]="subtask.status === 'done'">
+            <div class="subtask-header">
+              <span class="subtask-title" (click)="editSubtask(subtask)">{{ subtask.title }}</span>
+              <div class="subtask-actions">
+                <button class="btn-icon" (click)="editSubtask(subtask)" title="編輯">✏️</button>
+                <button class="btn-icon btn-danger-icon" (click)="deleteSubtask(subtask.id)" title="刪除">🗑️</button>
+              </div>
+            </div>
+            @if (subtask.description) {
+              <p class="subtask-description">{{ subtask.description }}</p>
+            }
+            <div class="subtask-meta">
+              @if (subtask.assignee_name) {
+                <span class="subtask-assignee">指派給: {{ subtask.assignee_name }}</span>
+              }
+              @if (subtask.due_date) {
+                <span class="subtask-due-date" [class.overdue]="isOverdue(subtask.due_date)">
+                  截止: {{ formatDate(subtask.due_date) }}
+                </span>
+              }
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  } @else {
+    <div class="empty-subtasks">
+      <p>尚無子任務，點擊「新增子任務」來建立</p>
+    </div>
+  }
+</div>
+
+<!-- 新增/編輯子任務模態框 -->
+<div class="modal-overlay" *ngIf="showSubtaskModal || editingSubtask" (click)="closeSubtaskModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>{{ editingSubtask ? '編輯子任務' : '新增子任務' }}</h2>
+      <button class="btn-close" (click)="closeSubtaskModal()">×</button>
+    </div>
+    <form (ngSubmit)="saveSubtask()" class="modal-form">
+      <div class="form-group">
+        <label for="subtask-title">標題 *</label>
+        <input 
+          type="text" 
+          id="subtask-title" 
+          [value]="subtaskForm.title"
+          (input)="onFormChange('title', $any($event.target).value)"
+          name="subtask-title"
+          required
+          placeholder="輸入子任務標題"
+          maxlength="500"
+        />
+      </div>
+      <div class="form-group">
+        <label for="subtask-description">描述</label>
+        <textarea 
+          id="subtask-description" 
+          [value]="subtaskForm.description"
+          (input)="onFormChange('description', $any($event.target).value)"
+          name="subtask-description"
+          rows="3"
+          placeholder="輸入子任務描述（選填）"
+        ></textarea>
+      </div>
+      <div class="form-group">
+        <label for="subtask-priority">優先級</label>
+        <select 
+          id="subtask-priority" 
+          [value]="subtaskForm.priority"
+          (change)="onFormChange('priority', $any($event.target).value)"
+          name="subtask-priority"
+        >
+          <option value="">無</option>
+          <option value="low">低</option>
+          <option value="medium">中</option>
+          <option value="high">高</option>
+          <option value="urgent">緊急</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="subtask-due-date">截止日期</label>
+        <input 
+          type="datetime-local" 
+          id="subtask-due-date" 
+          [value]="subtaskForm.dueDate"
+          (input)="onFormChange('dueDate', $any($event.target).value)"
+          name="subtask-due-date"
+        />
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" (click)="closeSubtaskModal()">取消</button>
+        <button type="submit" class="btn-primary" [disabled]="savingSubtask() || !subtaskForm.title.trim()">
+          {{ savingSubtask() ? '儲存中...' : '儲存' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
