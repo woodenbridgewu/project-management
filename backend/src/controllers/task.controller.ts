@@ -3,6 +3,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { query } from '../database/index';
 import { z } from 'zod';
+import { cacheService } from '../services/cache.service';
 import { NotificationController } from './notification.controller';
 
 const createTaskSchema = z.object({
@@ -20,6 +21,15 @@ export class TaskController {
         try {
             const { projectId } = req.params;
             const { status, assigneeId, sectionId } = req.query;
+
+            // 構建快取鍵（包含所有篩選參數）
+            const cacheKey = `tasks:project:${projectId}:status:${status || 'all'}:assignee:${assigneeId || 'all'}:section:${sectionId || 'all'}`;
+
+            // 嘗試從快取獲取
+            const cached = await cacheService.get<any>(cacheKey);
+            if (cached) {
+                return res.json(cached);
+            }
 
             let queryText = `
         SELECT 
@@ -62,19 +72,19 @@ export class TaskController {
             let paramIndex = 2;
 
             if (status) {
-                queryText += ` AND t.status = ${paramIndex}`;
+                queryText += ` AND t.status = $${paramIndex}`;
                 params.push(status);
                 paramIndex++;
             }
 
             if (assigneeId) {
-                queryText += ` AND t.assignee_id = ${paramIndex}`;
+                queryText += ` AND t.assignee_id = $${paramIndex}`;
                 params.push(assigneeId);
                 paramIndex++;
             }
 
             if (sectionId) {
-                queryText += ` AND t.section_id = ${paramIndex}`;
+                queryText += ` AND t.section_id = $${paramIndex}`;
                 params.push(sectionId);
                 paramIndex++;
             }
@@ -87,7 +97,12 @@ export class TaskController {
             const result = await query(queryText, params);
             // 轉換時間戳為 ISO 8601 格式
             const tasks = result.rows.map((task: any) => this.formatTaskTimestamps(task));
-            res.json({ tasks });
+            const response = { tasks };
+
+            // 設置快取（TTL: 2 分鐘，因為任務更新較頻繁）
+            await cacheService.set(cacheKey, response, 120);
+
+            res.json(response);
         } catch (error) {
             console.error('Get tasks error:', error);
             res.status(500).json({ error: 'Internal server error' });
@@ -224,6 +239,10 @@ export class TaskController {
                 }
             }
             
+            // 清除相關快取
+            await cacheService.deletePattern(`tasks:project:${projectId}:*`);
+            await cacheService.delete(`task:${task.id}`);
+
             // 發送 WebSocket 事件
             try {
                 const io = req.app.get('io') as SocketIOServer;
@@ -464,6 +483,10 @@ export class TaskController {
             // 轉換時間戳為 ISO 8601 格式
             const formattedTask = this.formatTaskTimestamps(fullTaskResult.rows[0]);
             
+            // 清除相關快取
+            await cacheService.deletePattern(`tasks:project:${oldTask.project_id}:*`);
+            await cacheService.delete(`task:${id}`);
+
             // 發送 WebSocket 事件
             try {
                 const io = req.app.get('io') as SocketIOServer;
@@ -540,6 +563,10 @@ export class TaskController {
                     // 活動紀錄失敗不影響任務刪除
                 }
             }
+
+            // 清除相關快取
+            await cacheService.deletePattern(`tasks:project:${projectId}:*`);
+            await cacheService.delete(`task:${id}`);
 
             // 發送 WebSocket 事件
             try {

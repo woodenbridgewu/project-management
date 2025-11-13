@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { query } from '../database/index';
 import { z } from 'zod';
+import { cacheService } from '../services/cache.service';
 
 const createProjectSchema = z.object({
     name: z.string().min(1).max(255),
@@ -61,6 +62,15 @@ export class ProjectController {
                 return res.status(404).json({ error: 'Workspace not found or access denied' });
             }
 
+            // 構建快取鍵（包含 archived 參數）
+            const cacheKey = `projects:workspace:${workspaceId}:archived:${archived || 'false'}`;
+
+            // 嘗試從快取獲取
+            const cached = await cacheService.get<any>(cacheKey);
+            if (cached) {
+                return res.json(cached);
+            }
+
             let queryText = `
                 SELECT 
                     p.*,
@@ -93,7 +103,12 @@ export class ProjectController {
             `;
 
             const result = await query(queryText, params);
-            res.json({ projects: result.rows });
+            const response = { projects: result.rows };
+
+            // 設置快取（TTL: 5 分鐘）
+            await cacheService.set(cacheKey, response, 300);
+
+            res.json(response);
         } catch (error) {
             console.error('Get projects error:', error);
             res.status(500).json({ error: 'Internal server error' });
@@ -145,6 +160,11 @@ export class ProjectController {
                 [project.id]
             );
 
+            // 清除相關快取
+            await cacheService.deletePattern(`projects:workspace:${workspaceId}:*`);
+            await cacheService.delete(`project:${project.id}`);
+            await cacheService.deletePattern(`workspace:${workspaceId}`);
+
             res.status(201).json({ project: fullProject.rows[0] });
         } catch (error) {
             if (error instanceof z.ZodError) {
@@ -160,6 +180,17 @@ export class ProjectController {
         try {
             const { id } = req.params;
             const userId = req.user!.id;
+            const cacheKey = `project:${id}`;
+
+            // 嘗試從快取獲取
+            const cached = await cacheService.get<any>(cacheKey);
+            if (cached) {
+                // 檢查權限
+                const hasAccess = await this.checkWorkspaceAccess(cached.project.workspace_id, userId);
+                if (hasAccess) {
+                    return res.json(cached);
+                }
+            }
 
             // 取得專案資訊並檢查權限
             const result = await query(
@@ -200,13 +231,18 @@ export class ProjectController {
                 [id]
             );
 
-            res.json({
+            const response = {
                 project: {
                     ...project,
                     task_count: parseInt(taskCount.rows[0].count),
                     section_count: parseInt(sectionCount.rows[0].count)
                 }
-            });
+            };
+
+            // 設置快取（TTL: 5 分鐘）
+            await cacheService.set(cacheKey, response, 300);
+
+            res.json(response);
         } catch (error) {
             console.error('Get project error:', error);
             res.status(500).json({ error: 'Internal server error' });
@@ -289,6 +325,11 @@ export class ProjectController {
                 [result.rows[0].id]
             );
 
+            // 清除相關快取
+            const project = fullProject.rows[0];
+            await cacheService.delete(`project:${id}`);
+            await cacheService.deletePattern(`projects:workspace:${project.workspace_id}:*`);
+
             res.json({ project: fullProject.rows[0] });
         } catch (error) {
             if (error instanceof z.ZodError) {
@@ -311,8 +352,22 @@ export class ProjectController {
                 return res.status(403).json({ error: 'Permission denied' });
             }
 
+            // 先取得專案資訊以便清除快取
+            const projectInfo = await query(
+                `SELECT workspace_id FROM projects WHERE id = $1`,
+                [id]
+            );
+
             // 刪除專案（CASCADE 會自動刪除相關資料）
             await query(`DELETE FROM projects WHERE id = $1`, [id]);
+
+            // 清除相關快取
+            if (projectInfo.rows.length > 0) {
+                const workspaceId = projectInfo.rows[0].workspace_id;
+                await cacheService.delete(`project:${id}`);
+                await cacheService.deletePattern(`projects:workspace:${workspaceId}:*`);
+                await cacheService.deletePattern(`tasks:project:${id}:*`);
+            }
 
             res.json({ message: 'Project deleted successfully' });
         } catch (error) {
@@ -359,6 +414,11 @@ export class ProjectController {
                 WHERE p.id = $1`,
                 [result.rows[0].id]
             );
+
+            // 清除相關快取
+            const project = fullProject.rows[0];
+            await cacheService.delete(`project:${id}`);
+            await cacheService.deletePattern(`projects:workspace:${project.workspace_id}:*`);
 
             res.json({ project: fullProject.rows[0] });
         } catch (error) {

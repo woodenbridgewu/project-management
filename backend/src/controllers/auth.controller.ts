@@ -6,6 +6,7 @@ import { query } from '../database/index';
 import { config } from '../config/index';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { cacheService } from '../services/cache.service';
 
 const registerSchema = z.object({
     email: z.string().email(),
@@ -148,6 +149,14 @@ export class AuthController {
                 return res.status(401).json({ error: 'Unauthorized' });
             }
 
+            const cacheKey = `user:${req.user.id}`;
+
+            // 嘗試從快取獲取
+            const cached = await cacheService.get<any>(cacheKey);
+            if (cached) {
+                return res.json(cached);
+            }
+
             const result = await query(
                 `SELECT 
                     id,
@@ -182,7 +191,7 @@ export class AuthController {
                 }
             }
 
-            res.json({
+            const response = {
                 user: {
                     id: user.id,
                     email: user.email,
@@ -192,7 +201,12 @@ export class AuthController {
                     createdAt: user.created_at,
                     updatedAt: user.updated_at
                 }
-            });
+            };
+
+            // 設置快取（TTL: 10 分鐘）
+            await cacheService.set(cacheKey, response, 600);
+
+            res.json(response);
         } catch (error) {
             console.error('Get current user error:', error);
             res.status(500).json({ error: 'Internal server error' });

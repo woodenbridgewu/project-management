@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { query } from '../database/index';
 import { z } from 'zod';
 import { NotificationController } from './notification.controller';
+import { cacheService } from '../services/cache.service';
 
 const createWorkspaceSchema = z.object({
     name: z.string().min(1).max(255),
@@ -29,6 +30,13 @@ export class WorkspaceController {
     async getWorkspaces(req: AuthRequest, res: Response) {
         try {
             const userId = req.user!.id;
+            const cacheKey = `workspaces:user:${userId}`;
+
+            // 嘗試從快取獲取
+            const cached = await cacheService.get<any>(cacheKey);
+            if (cached) {
+                return res.json(cached);
+            }
 
             const result = await query(
                 `SELECT 
@@ -51,7 +59,12 @@ export class WorkspaceController {
                 [userId]
             );
 
-            res.json({ workspaces: result.rows });
+            const response = { workspaces: result.rows };
+            
+            // 設置快取（TTL: 5 分鐘）
+            await cacheService.set(cacheKey, response, 300);
+
+            res.json(response);
         } catch (error) {
             console.error('Get workspaces error:', error);
             res.status(500).json({ error: 'Internal server error' });
@@ -94,6 +107,10 @@ export class WorkspaceController {
                 [workspace.id]
             );
 
+            // 清除相關快取
+            await cacheService.deletePattern(`workspaces:user:*`);
+            await cacheService.delete(`workspace:${workspace.id}`);
+
             res.status(201).json({ workspace: fullWorkspace.rows[0] });
         } catch (error) {
             if (error instanceof z.ZodError) {
@@ -109,6 +126,23 @@ export class WorkspaceController {
         try {
             const { id } = req.params;
             const userId = req.user!.id;
+            const cacheKey = `workspace:${id}`;
+
+            // 嘗試從快取獲取
+            const cached = await cacheService.get<any>(cacheKey);
+            if (cached) {
+                // 檢查權限（快取中可能沒有權限資訊，需要重新檢查）
+                const accessCheck = await query(
+                    `SELECT 1 FROM workspaces w
+                     LEFT JOIN workspace_members wm ON wm.workspace_id = w.id AND wm.user_id = $2
+                     WHERE w.id = $1 AND (w.owner_id = $2 OR wm.user_id = $2)`,
+                    [id, userId]
+                );
+
+                if (accessCheck.rows.length > 0) {
+                    return res.json(cached);
+                }
+            }
 
             // 檢查使用者是否有權限訪問此工作區
             const accessCheck = await query(
@@ -137,13 +171,18 @@ export class WorkspaceController {
                 [id]
             );
 
-            res.json({
+            const response = {
                 workspace: {
                     ...workspace,
                     project_count: parseInt(projectCount.rows[0].count),
                     member_count: parseInt(memberCount.rows[0].count)
                 }
-            });
+            };
+
+            // 設置快取（TTL: 5 分鐘）
+            await cacheService.set(cacheKey, response, 300);
+
+            res.json(response);
         } catch (error) {
             console.error('Get workspace error:', error);
             res.status(500).json({ error: 'Internal server error' });
@@ -202,6 +241,11 @@ export class WorkspaceController {
                 values
             );
 
+            // 清除相關快取
+            await cacheService.deletePattern(`workspaces:user:*`);
+            await cacheService.delete(`workspace:${id}`);
+            await cacheService.deletePattern(`workspace:${id}:members`);
+
             res.json({ workspace: result.rows[0] });
         } catch (error) {
             if (error instanceof z.ZodError) {
@@ -235,6 +279,11 @@ export class WorkspaceController {
             // 刪除工作區（CASCADE 會自動刪除相關資料）
             await query(`DELETE FROM workspaces WHERE id = $1`, [id]);
 
+            // 清除相關快取
+            await cacheService.deletePattern(`workspaces:user:*`);
+            await cacheService.delete(`workspace:${id}`);
+            await cacheService.deletePattern(`workspace:${id}:*`);
+
             res.json({ message: 'Workspace deleted successfully' });
         } catch (error) {
             console.error('Delete workspace error:', error);
@@ -247,6 +296,23 @@ export class WorkspaceController {
         try {
             const { id } = req.params;
             const userId = req.user!.id;
+            const cacheKey = `workspace:${id}:members`;
+
+            // 嘗試從快取獲取
+            const cached = await cacheService.get<any>(cacheKey);
+            if (cached) {
+                // 檢查權限
+                const accessCheck = await query(
+                    `SELECT 1 FROM workspaces w
+                     LEFT JOIN workspace_members wm ON wm.workspace_id = w.id AND wm.user_id = $2
+                     WHERE w.id = $1 AND (w.owner_id = $2 OR wm.user_id = $2)`,
+                    [id, userId]
+                );
+
+                if (accessCheck.rows.length > 0) {
+                    return res.json(cached);
+                }
+            }
 
             // 檢查使用者是否有權限訪問此工作區
             const accessCheck = await query(
@@ -280,7 +346,12 @@ export class WorkspaceController {
                 [id]
             );
 
-            res.json({ members: result.rows });
+            const response = { members: result.rows };
+
+            // 設置快取（TTL: 5 分鐘）
+            await cacheService.set(cacheKey, response, 300);
+
+            res.json(response);
         } catch (error) {
             console.error('Get members error:', error);
             res.status(500).json({ error: 'Internal server error' });
@@ -383,6 +454,11 @@ export class WorkspaceController {
                 console.error('Failed to create invitation notification:', notifError);
             }
 
+            // 清除相關快取
+            await cacheService.deletePattern(`workspaces:user:*`);
+            await cacheService.delete(`workspace:${id}`);
+            await cacheService.delete(`workspace:${id}:members`);
+
             res.status(201).json({ member: memberInfo.rows[0] });
         } catch (error) {
             if (error instanceof z.ZodError) {
@@ -471,6 +547,11 @@ export class WorkspaceController {
                 [result.rows[0].id]
             );
 
+            // 清除相關快取
+            await cacheService.deletePattern(`workspaces:user:*`);
+            await cacheService.delete(`workspace:${id}`);
+            await cacheService.delete(`workspace:${id}:members`);
+
             res.json({ member: memberInfo.rows[0] });
         } catch (error) {
             if (error instanceof z.ZodError) {
@@ -523,6 +604,11 @@ export class WorkspaceController {
                  WHERE workspace_id = $1 AND user_id = $2`,
                 [id, targetUserId]
             );
+
+            // 清除相關快取
+            await cacheService.deletePattern(`workspaces:user:*`);
+            await cacheService.delete(`workspace:${id}`);
+            await cacheService.delete(`workspace:${id}:members`);
 
             res.json({ message: 'Member removed successfully' });
         } catch (error) {

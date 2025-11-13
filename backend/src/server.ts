@@ -18,6 +18,7 @@ import notificationRouter from './routes/notification.routes';
 import { initializeWebSocket } from './websocket/index';
 import { EmailService } from './services/email.service';
 import { StorageService } from './services/storage.service';
+import { cacheService } from './services/cache.service';
 import path from 'path';
 
 const app = express();
@@ -63,6 +64,9 @@ const PORT = config.port || 3000;
 httpServer.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Frontend URL: ${config.frontendUrl}`);
+    
+    // 初始化 Redis 快取服務
+    await cacheService.initialize();
     
     // 驗證 Email 配置（異步，不阻塞啟動）
     if (config.smtp.host) {

@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { query } from '../database/index';
+import { cacheService } from '../services/cache.service';
 
 export class ActivityController {
     // 檢查使用者是否有權限訪問工作區
@@ -240,6 +241,15 @@ export class ActivityController {
                 return res.status(403).json({ error: 'Access denied' });
             }
 
+            // 構建快取鍵（包含分頁參數）
+            const cacheKey = `activities:task:${tid}:limit:${limit}:offset:${offset}`;
+
+            // 嘗試從快取獲取
+            const cached = await cacheService.get<any>(cacheKey);
+            if (cached) {
+                return res.json(cached);
+            }
+
             // 取得任務的 workspace_id
             const taskResult = await query(
                 `SELECT p.workspace_id 
@@ -370,7 +380,12 @@ export class ActivityController {
                 return row;
             });
 
-            res.json({ activities, total });
+            const response = { activities, total };
+
+            // 設置快取（TTL: 1 分鐘，因為活動紀錄更新頻繁）
+            await cacheService.set(cacheKey, response, 60);
+
+            res.json(response);
         } catch (error) {
             console.error('Get task activities error:', error);
             res.status(500).json({ error: 'Internal server error' });
