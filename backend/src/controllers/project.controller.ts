@@ -77,11 +77,11 @@ export class ProjectController {
                     u.full_name as creator_name,
                     u.email as creator_email,
                     u.avatar_url as creator_avatar,
-                    COUNT(DISTINCT t.id) as task_count,
+                    COUNT(DISTINCT CASE WHEN t.section_id IS NOT NULL THEN t.id END) as task_count,
                     COUNT(DISTINCT s.id) as section_count
                 FROM projects p
                 LEFT JOIN users u ON p.created_by = u.id
-                LEFT JOIN tasks t ON t.project_id = p.id
+                LEFT JOIN tasks t ON t.project_id = p.id AND t.parent_task_id IS NULL
                 LEFT JOIN sections s ON s.project_id = p.id
                 WHERE p.workspace_id = $1
             `;

@@ -65,7 +65,9 @@ export class TaskController {
         LEFT JOIN tasks st ON st.parent_task_id = t.id
         LEFT JOIN comments cm ON cm.task_id = t.id
         LEFT JOIN task_attachments a ON a.task_id = t.id
-        WHERE t.project_id = $1 AND t.parent_task_id IS NULL
+        WHERE t.project_id = $1 
+        AND t.parent_task_id IS NULL
+        AND t.section_id IS NOT NULL
       `;
 
             const params: any[] = [projectId];

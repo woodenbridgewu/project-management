@@ -15,6 +15,7 @@ import { tagRouter } from './routes/tag.routes';
 import { attachmentRouter } from './routes/attachment.routes';
 import { activityRouter } from './routes/activity.routes';
 import notificationRouter from './routes/notification.routes';
+import { searchRouter } from './routes/search.routes';
 import { initializeWebSocket } from './websocket/index';
 import { EmailService } from './services/email.service';
 import { StorageService } from './services/storage.service';
@@ -53,6 +54,7 @@ app.use('/api/tags', tagRouter);
 app.use('/api/attachments', attachmentRouter);
 app.use('/api/activities', activityRouter);
 app.use('/api/notifications', notificationRouter);
+app.use('/api/search', searchRouter);
 
 // 錯誤處理
 app.use(errorHandler);

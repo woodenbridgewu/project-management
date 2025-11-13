@@ -273,7 +273,7 @@ export class ProjectBoardComponent implements OnInit, OnDestroy {
     }
 
     deleteSection(sectionId: string) {
-        if (!confirm('確定要刪除此區段嗎？區段內的任務將被保留但不再屬於任何區段。')) return;
+        if (!confirm('確定要刪除此區段嗎？區段內的所有任務也會一併被刪除，此操作無法復原。')) return;
 
         this.loading.set(true);
         this.sectionService.deleteSection(sectionId).subscribe({

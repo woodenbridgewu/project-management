@@ -1,0 +1,143 @@
+<div class="search-results-container">
+  <div class="search-header">
+    <h1>搜尋結果</h1>
+    <div class="search-query" *ngIf="searchQuery()">
+      <span class="query-label">搜尋關鍵字：</span>
+      <span class="query-text">{{ searchQuery() }}</span>
+    </div>
+  </div>
+
+  <!-- 類型切換 -->
+  <div class="search-filters">
+    <button
+      class="filter-btn"
+      [class.active]="searchType() === 'all'"
+      (click)="onTypeChange('all')"
+    >
+      全部
+    </button>
+    <button
+      class="filter-btn"
+      [class.active]="searchType() === 'tasks'"
+      (click)="onTypeChange('tasks')"
+    >
+      任務 ({{ totalCounts().tasks }})
+    </button>
+    <button
+      class="filter-btn"
+      [class.active]="searchType() === 'projects'"
+      (click)="onTypeChange('projects')"
+    >
+      專案 ({{ totalCounts().projects }})
+    </button>
+    <button
+      class="filter-btn"
+      [class.active]="searchType() === 'workspaces'"
+      (click)="onTypeChange('workspaces')"
+    >
+      工作區 ({{ totalCounts().workspaces }})
+    </button>
+  </div>
+
+  <!-- 載入中 -->
+  <div class="loading" *ngIf="loading()">
+    <div class="spinner"></div>
+    <p>搜尋中...</p>
+  </div>
+
+  <!-- 錯誤訊息 -->
+  <div class="error" *ngIf="error()">
+    <p>{{ error() }}</p>
+  </div>
+
+  <!-- 搜尋結果 -->
+  <div class="search-results" *ngIf="!loading() && !error() && searchResults()">
+    <!-- 任務結果 -->
+    <section class="results-section" *ngIf="(searchType() === 'all' || searchType() === 'tasks') && searchResults()!.tasks.length > 0">
+      <h2>任務 ({{ searchResults()!.tasks.length }})</h2>
+      <div class="results-list">
+        <div class="result-item task-item" *ngFor="let task of searchResults()!.tasks" [routerLink]="['/tasks', task.id]">
+          <div class="result-icon">📋</div>
+          <div class="result-content">
+            <div class="result-title">{{ task.title }}</div>
+            <div class="result-meta">
+              <span class="status-badge" [class]="'status-' + task.status">
+                {{ getStatusLabel(task.status) }}
+              </span>
+              <span class="priority-badge" *ngIf="task.priority" [class]="getPriorityClass(task.priority)">
+                {{ getPriorityLabel(task.priority) }}
+              </span>
+              <span class="meta-text" *ngIf="task.project_name">
+                {{ task.project_name }}
+              </span>
+              <span class="meta-text" *ngIf="task.workspace_name">
+                · {{ task.workspace_name }}
+              </span>
+            </div>
+            <div class="result-description" *ngIf="task.description">
+              {{ task.description }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 專案結果 -->
+    <section class="results-section" *ngIf="(searchType() === 'all' || searchType() === 'projects') && searchResults()!.projects.length > 0">
+      <h2>專案 ({{ searchResults()!.projects.length }})</h2>
+      <div class="results-list">
+        <div class="result-item project-item" *ngFor="let project of searchResults()!.projects" [routerLink]="['/projects', project.id, 'board']">
+          <div class="result-icon" [style.color]="project.color || '#4A90E2'">📁</div>
+          <div class="result-content">
+            <div class="result-title">{{ project.name }}</div>
+            <div class="result-meta">
+              <span class="meta-text" *ngIf="project.workspace_name">
+                {{ project.workspace_name }}
+              </span>
+              <span class="meta-text" *ngIf="project.task_count !== undefined">
+                · {{ project.task_count }} 個任務
+              </span>
+            </div>
+            <div class="result-description" *ngIf="project.description">
+              {{ project.description }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 工作區結果 -->
+    <section class="results-section" *ngIf="(searchType() === 'all' || searchType() === 'workspaces') && searchResults()!.workspaces.length > 0">
+      <h2>工作區 ({{ searchResults()!.workspaces.length }})</h2>
+      <div class="results-list">
+        <div class="result-item workspace-item" *ngFor="let workspace of searchResults()!.workspaces" [routerLink]="['/workspaces', workspace.id]">
+          <div class="result-icon">🏢</div>
+          <div class="result-content">
+            <div class="result-title">{{ workspace.name }}</div>
+            <div class="result-meta">
+              <span class="meta-text" *ngIf="workspace.owner_name">
+                擁有者：{{ workspace.owner_name }}
+              </span>
+              <span class="meta-text" *ngIf="workspace.project_count !== undefined">
+                · {{ workspace.project_count }} 個專案
+              </span>
+              <span class="meta-text" *ngIf="workspace.member_count !== undefined">
+                · {{ workspace.member_count }} 位成員
+              </span>
+            </div>
+            <div class="result-description" *ngIf="workspace.description">
+              {{ workspace.description }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 無結果 -->
+    <div class="no-results" *ngIf="searchResults()!.total === 0">
+      <p>沒有找到相關結果</p>
+      <p class="hint">請嘗試使用不同的關鍵字或檢查拼寫</p>
+    </div>
+  </div>
+</div>
+

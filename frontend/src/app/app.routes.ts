@@ -27,6 +27,11 @@ export const routes: Routes = [
         loadChildren: () => import('./features/task/task.routes').then(m => m.taskRoutes)
     },
     {
+        path: 'search',
+        canActivate: [authGuard],
+        loadComponent: () => import('./features/search/search-results.component').then(m => m.SearchResultsComponent)
+    },
+    {
         path: '',
         redirectTo: '/dashboard',
         pathMatch: 'full'

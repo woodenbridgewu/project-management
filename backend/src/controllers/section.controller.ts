@@ -3,6 +3,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { query } from '../database/index';
 import { z } from 'zod';
+import { cacheService } from '../services/cache.service';
 
 const createSectionSchema = z.object({
     name: z.string().min(1).max(255),
@@ -297,9 +298,12 @@ export class SectionController {
                 return res.status(403).json({ error: 'Permission denied' });
             }
 
-            // 取得區段資訊（用於重新排序）
+            // 取得區段資訊（用於重新排序和記錄活動）
             const sectionResult = await query(
-                `SELECT project_id, position FROM sections WHERE id = $1`,
+                `SELECT s.project_id, s.position, s.name, p.workspace_id
+                 FROM sections s
+                 JOIN projects p ON s.project_id = p.id
+                 WHERE s.id = $1`,
                 [id]
             );
 
@@ -309,9 +313,61 @@ export class SectionController {
 
             const projectId = sectionResult.rows[0].project_id;
             const position = sectionResult.rows[0].position;
+            const sectionName = sectionResult.rows[0].name;
+            const workspaceId = sectionResult.rows[0].workspace_id;
 
-            // 刪除區段（CASCADE 會自動處理相關任務）
+            // 在刪除區段前，取得該區段中的所有任務（用於記錄活動）
+            const tasksResult = await query(
+                `SELECT id, title, parent_task_id FROM tasks WHERE section_id = $1`,
+                [id]
+            );
+
+            // 刪除區段（CASCADE 會自動刪除相關任務）
             await query(`DELETE FROM sections WHERE id = $1`, [id]);
+
+            // 記錄區段刪除的活動
+            try {
+                await this.logActivity(
+                    workspaceId,
+                    userId,
+                    'section',
+                    id,
+                    'deleted',
+                    { 
+                        sectionName: sectionName || '區段',
+                        projectId,
+                        deletedTasksCount: tasksResult.rows.length
+                    }
+                );
+            } catch (activityError) {
+                console.error('Failed to log section deletion activity:', activityError);
+            }
+
+            // 記錄每個被刪除任務的活動（因為 CASCADE 刪除不會觸發任務刪除的邏輯）
+            for (const task of tasksResult.rows) {
+                try {
+                    const activityChanges: any = {};
+                    if (task.parent_task_id) {
+                        activityChanges.parentTaskId = task.parent_task_id;
+                        activityChanges.subtaskTitle = task.title ? task.title.substring(0, 50) : '';
+                    } else {
+                        activityChanges.taskTitle = task.title ? task.title.substring(0, 50) : '';
+                    }
+                    activityChanges.deletedWithSection = true;
+                    activityChanges.sectionName = sectionName || '區段';
+                    
+                    await this.logActivity(
+                        workspaceId,
+                        userId,
+                        'task',
+                        task.id,
+                        'deleted',
+                        activityChanges
+                    );
+                } catch (activityError) {
+                    console.error(`Failed to log task deletion activity for task ${task.id}:`, activityError);
+                }
+            }
 
             // 重新排序：將後面的區段位置往前移
             await query(
@@ -329,6 +385,14 @@ export class SectionController {
                 }
             } catch (wsError) {
                 console.error('Failed to emit WebSocket event:', wsError);
+            }
+
+            // 清除相關快取
+            try {
+                await cacheService.deletePattern(`tasks:project:${projectId}:*`);
+                await cacheService.deletePattern(`projects:workspace:${workspaceId}:*`);
+            } catch (cacheError) {
+                console.error('Failed to clear cache:', cacheError);
             }
 
             res.json({ message: 'Section deleted successfully' });
@@ -437,6 +501,22 @@ export class SectionController {
             console.error('Reorder section error:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
+    }
+
+    private async logActivity(
+        workspaceId: string,
+        userId: string,
+        entityType: string,
+        entityId: string,
+        action: string,
+        changes?: any
+    ) {
+        await query(
+            `INSERT INTO activity_logs 
+             (workspace_id, user_id, entity_type, entity_id, action, changes)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [workspaceId, userId, entityType, entityId, action, JSON.stringify(changes || {})]
+        );
     }
 }
 

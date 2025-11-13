@@ -10,6 +10,40 @@
       </button>
     </div>
 
+    <!-- 中間：搜尋框 -->
+    <div class="header-center">
+      <div class="search-container">
+        <input
+          type="text"
+          class="search-input"
+          placeholder="搜尋任務、專案、工作區... (按 Cmd+K)"
+          [(ngModel)]="searchQuery"
+          (focus)="onSearchFocus()"
+          (blur)="onSearchBlur()"
+          (input)="onSearchInput()"
+          (keydown)="onSearchKeydown($event)"
+          #searchInput
+        />
+        <span class="search-icon" (click)="onSearchIconClick()" title="搜尋">🔍</span>
+        <div class="search-suggestions" *ngIf="showSuggestions() && searchSuggestions().length > 0">
+          <div
+            class="suggestion-item"
+            *ngFor="let suggestion of searchSuggestions(); let i = index"
+            [class.active]="selectedSuggestionIndex() === i"
+            (click)="selectSuggestion(suggestion)"
+            (mouseenter)="selectedSuggestionIndex.set(i)"
+          >
+            <span class="suggestion-icon">
+              {{ suggestion.type === 'task' ? '📋' : suggestion.type === 'project' ? '📁' : '🏢' }}
+            </span>
+            <div class="suggestion-content">
+              <div class="suggestion-title">{{ suggestion.title }}</div>
+              <div class="suggestion-subtitle" *ngIf="suggestion.subtitle">{{ suggestion.subtitle }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- 右側：通知和用戶資訊 -->
     <div class="header-right">
