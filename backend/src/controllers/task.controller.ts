@@ -609,12 +609,35 @@ export class TaskController {
             const projectId = taskResult.rows[0].project_id;
             const oldSectionId = taskResult.rows[0].old_section_id;
 
+            // 取得新區段所屬的專案 ID（用於清除快取）
+            let newProjectId = projectId;
+            if (oldSectionId !== sectionId) {
+                const sectionResult = await query(
+                    `SELECT project_id FROM sections WHERE id = $1`,
+                    [sectionId]
+                );
+                if (sectionResult.rows.length > 0) {
+                    newProjectId = sectionResult.rows[0].project_id;
+                }
+            }
+
             await query(
                 `UPDATE tasks 
          SET section_id = $1, position = $2, updated_at = NOW()
          WHERE id = $3`,
                 [sectionId, position, id]
             );
+
+            // 清除相關快取
+            // 清除舊專案和新專案的任務列表快取（如果跨專案移動）
+            await cacheService.deletePattern(`tasks:project:${projectId}:*`);
+            if (newProjectId !== projectId) {
+                await cacheService.deletePattern(`tasks:project:${newProjectId}:*`);
+            }
+            // 清除任務詳情快取
+            await cacheService.delete(`task:${id}`);
+            // 清除專案列表快取（任務計數可能改變）
+            await cacheService.deletePattern(`projects:workspace:${workspaceId}:*`);
 
             // 記錄活動
             try {
