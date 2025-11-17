@@ -16,7 +16,7 @@
       [cdkDropListOrientation]="'horizontal'"
       (cdkDropListDropped)="onSectionDrop($event)">
       @for (section of sections(); track section.id) {
-        <div class="board-column" cdkDrag>
+        <div class="board-column" cdkDrag [cdkDragDisabled]="isDraggingTask()">
           <div class="column-header" cdkDragHandle>
             <div class="column-title">
               <h3>{{ section.name }}</h3>
@@ -33,10 +33,15 @@
             cdkDropList
             [id]="section.id"
             [cdkDropListData]="section.tasks || []"
+          [cdkDropListConnectedTo]="getConnectedDropLists(section.id)"
             (cdkDropListDropped)="onDrop($event)">
             
             @for (task of section.tasks || []; track task.id) {
-              <div class="task-card-wrapper" cdkDrag>
+              <div 
+                class="task-card-wrapper" 
+                cdkDrag
+                (cdkDragStarted)="isDraggingTask.set(true)"
+                (cdkDragEnded)="isDraggingTask.set(false)">
                 <app-task-card 
                   [task]="task"
                   (taskClick)="openTaskDetail(task)"

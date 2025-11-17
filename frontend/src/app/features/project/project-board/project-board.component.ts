@@ -31,6 +31,7 @@ export class ProjectBoardComponent implements OnInit, OnDestroy {
     loading = signal(false);
     projectId = '';
     private subscriptions: Subscription[] = [];
+    isDraggingTask = signal(false);
 
     showCreateSectionModal = false;
     editingSection: Section | null = null;
@@ -230,10 +231,38 @@ export class ProjectBoardComponent implements OnInit, OnDestroy {
         if (!event.container.data || !event.previousContainer.data) return;
 
         const task = event.previousContainer.data[event.previousIndex];
-        const newSectionId = event.container.id;
+        
+        // 獲取目標區段 ID - 優先使用 container.id，這是 HTML 中設置的 section.id
+        let newSectionId: string;
+        
+        // 方法1: 使用 container.id（最可靠）
+        if (event.container.id && typeof event.container.id === 'string') {
+            newSectionId = event.container.id;
+        } else {
+            // 方法2: 通過查找包含該容器資料的區段
+            const sectionsData = this.sections();
+            const targetSection = sectionsData.find(s => 
+                s.tasks === event.container.data
+            );
+            
+            if (targetSection) {
+                newSectionId = targetSection.id;
+            } else {
+                // 方法3: 通過 previousContainer.id 獲取原始區段（如果找不到目標）
+                console.warn('無法找到目標區段，使用原始區段 ID');
+                if (event.previousContainer.id && typeof event.previousContainer.id === 'string') {
+                    newSectionId = event.previousContainer.id;
+                } else {
+                    console.error('完全無法確定區段 ID');
+                    return;
+                }
+            }
+        }
+        
         const newPosition = event.currentIndex;
+        const isSameContainer = event.previousContainer === event.container;
 
-        if (event.previousContainer === event.container) {
+        if (isSameContainer) {
             // 同一區段內移動
             moveItemInArray(
                 event.container.data,
@@ -253,20 +282,12 @@ export class ProjectBoardComponent implements OnInit, OnDestroy {
         // 更新任務的區段和位置
         this.taskService.moveTask(task.id, newSectionId, newPosition).subscribe({
             next: () => {
-                // 更新本地狀態
-                const sectionsData = this.sections();
-                const taskToUpdate = sectionsData
-                    .flatMap(s => s.tasks || [])
-                    .find(t => t.id === task.id);
-                
-                if (taskToUpdate) {
-                    taskToUpdate.section_id = newSectionId;
-                    taskToUpdate.position = newPosition;
-                }
-                this.sections.set([...sectionsData]);
+                this.isDraggingTask.set(false);
+                // 重新載入以確保資料同步
+                this.loadSections();
             },
-            error: (error) => {
-                console.error('移動任務失敗:', error);
+            error: () => {
+                this.isDraggingTask.set(false);
                 // 重新載入以恢復狀態
                 this.loadSections();
             }
@@ -403,6 +424,12 @@ export class ProjectBoardComponent implements OnInit, OnDestroy {
                 this.loading.set(false);
             }
         });
+    }
+
+    getConnectedDropLists(sectionId: string): string[] {
+        return this.sections()
+            .filter(section => section.id !== sectionId)
+            .map(section => section.id);
     }
 
     goBack() {
