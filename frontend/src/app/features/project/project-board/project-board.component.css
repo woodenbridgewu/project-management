@@ -34,11 +34,15 @@
 }
 
 .board {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
   flex: 1;
   padding-bottom: 16px;
+  overflow-x: auto;
+}
+
+.sections-container {
+  display: flex;
+  gap: 16px;
+  min-width: fit-content;
 }
 
 .board-column {
@@ -139,6 +143,28 @@
 
 .column-content.cdk-drop-list-dragging .task-card-wrapper:not(.cdk-drag-placeholder) {
   transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* 區段拖移動畫效果 */
+.sections-container.cdk-drop-list-dragging .board-column:not(.cdk-drag-placeholder) {
+  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.board-column.cdk-drag-placeholder {
+  opacity: 0.3;
+}
+
+.board-column.cdk-drag-animating {
+  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* 區段標題拖移手柄樣式 */
+.column-header[cdkDragHandle] {
+  cursor: grab;
+}
+
+.column-header[cdkDragHandle]:active {
+  cursor: grabbing;
 }
 
 .empty-state {

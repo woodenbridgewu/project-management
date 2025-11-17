@@ -159,10 +159,12 @@ export class ProjectBoardComponent implements OnInit, OnDestroy {
         this.loading.set(true);
         this.sectionService.getSectionsByProject(this.projectId).subscribe({
             next: (response) => {
-                const sections = response.sections.map(section => ({
-                    ...section,
-                    tasks: []
-                }));
+                const sections = response.sections
+                    .map(section => ({
+                        ...section,
+                        tasks: []
+                    }))
+                    .sort((a, b) => (a.position || 0) - (b.position || 0));
                 this.sections.set(sections);
                 this.loadTasks();
             },
@@ -189,6 +191,37 @@ export class ProjectBoardComponent implements OnInit, OnDestroy {
             error: (error) => {
                 console.error('載入任務失敗:', error);
                 this.loading.set(false);
+            }
+        });
+    }
+
+    onSectionDrop(event: CdkDragDrop<Section[]>): void {
+        if (event.previousIndex === event.currentIndex) return;
+
+        const sectionsData = this.sections();
+        const section = sectionsData[event.previousIndex];
+
+        // 更新本地陣列順序
+        moveItemInArray(
+            sectionsData,
+            event.previousIndex,
+            event.currentIndex
+        );
+
+        // 更新後端區段位置
+        const newPosition = event.currentIndex;
+        this.sectionService.reorderSection(section.id, { position: newPosition }).subscribe({
+            next: () => {
+                // 更新本地狀態中的 position
+                sectionsData.forEach((s, index) => {
+                    s.position = index;
+                });
+                this.sections.set([...sectionsData]);
+            },
+            error: (error) => {
+                console.error('移動區段失敗:', error);
+                // 重新載入以恢復狀態
+                this.loadSections();
             }
         });
     }
