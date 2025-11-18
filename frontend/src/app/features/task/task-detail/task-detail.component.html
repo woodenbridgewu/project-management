@@ -67,6 +67,7 @@
       <!-- 評論區塊 -->
       <app-task-comments
         [taskId]="taskId"
+        [projectId]="task()?.project_id || ''"
         [isEditing]="isEditing"
         (activitiesRefresh)="loadActivitiesFirstPage()"
       ></app-task-comments>
